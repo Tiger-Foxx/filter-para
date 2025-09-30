@@ -1,0 +1,60 @@
+{
+  "system": {
+    "name": "Tiger-Fox Network Filtering System",
+    "version": "2.0.0",
+    "description": "High-performance C++ network filtering with multi-worker architecture"
+  },
+  "engine": {
+    "mode": "hybrid",
+    "queue_num": 0,
+    "max_workers": 0,
+    "max_queue_size": 100000,
+    "enable_cpu_affinity": true,
+    "decision_cache_size": 10000
+  },
+  "rules": {
+    "file": "rules/tiger_rules.json",
+    "precompile_patterns": true,
+    "enable_rule_cache": true
+  },
+  "tcp_reassembly": {
+    "enabled": true,
+    "max_streams": 10000,
+    "timeout_seconds": 30,
+    "http_ports": [80, 443, 8080, 8443, 8000, 3000, 5000],
+    "max_request_size": 1048576
+  },
+  "performance": {
+    "enable_metrics": true,
+    "metric_interval_seconds": 1.0,
+    "high_resolution_timing": true,
+    "export_metrics_on_exit": true,
+    "metrics_output_file": "metrics_output.json"
+  },
+  "network": {
+    "enable_ip_forwarding": true,
+    "cleanup_iptables_on_exit": true,
+    "connection_tracking": true,
+    "max_blocked_connections": 50000
+  },
+  "logging": {
+    "level": "info",
+    "verbose_packet_logging": false,
+    "log_rule_matches": true,
+    "log_performance_stats": true
+  },
+  "cloudlab": {
+    "architecture": "injector -> filter -> server",
+    "injector_ip": "10.10.1.10",
+    "filter_ip_1": "10.10.1.1",
+    "filter_ip_2": "10.10.2.1", 
+    "server_ip": "10.10.2.20",
+    "enable_cloudlab_optimizations": true
+  },
+  "experimental": {
+    "enable_sequential_hyb_mode": true,
+    "rule_parallelization_workers": 4,
+    "enable_advanced_caching": true,
+    "use_memory_pool": false
+  }
+}

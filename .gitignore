@@ -1,0 +1,11 @@
+CONTEXT.md
+AVANCEMENT.md
+TECHINIQUE_PYTHON.md
+*.ps1
+build/*
+*.cmake/
+*CMakeFiles/
+*CMakeCache.txt
+note.txt
+text.txt
+
