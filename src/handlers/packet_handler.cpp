@@ -6,164 +6,115 @@
 #include <iostream>
 #include <cstring>
 #include <unistd.h>
+
+// ============================================================
+// ORDRE CRITIQUE : Linux headers AVANT toute chose
+// ============================================================
 #include <linux/netfilter.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <iomanip>
+#include <libnetfilter_queue/libnetfilter_queue.h>
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
 #include <errno.h>
 
+// NE PAS INCLURE <netinet/in.h> ni <arpa/inet.h> ici
+// Les structures sont déjà définies par <linux/in.h> (via netfilter.h)
+
 // ============================================================
-// C-STYLE CALLBACK FOR NFQUEUE
+// CALLBACK C POUR NFQUEUE
 // ============================================================
-extern "C" {
-    static int PacketCallbackWrapper(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
-                                     struct nfq_data *nfa, void *data) {
-        PacketHandler* handler = static_cast<PacketHandler*>(data);
-        return handler->HandlePacket(qh, nfmsg, nfa);
-    }
+static int nfq_callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
+                        struct nfq_data *nfa, void *data) {
+    auto* handler = static_cast<PacketHandler*>(data);
+    return handler->HandlePacket(qh, nfmsg, nfa);
 }
 
 // ============================================================
 // CONSTRUCTOR / DESTRUCTOR
 // ============================================================
-PacketHandler::PacketHandler(int queue_num, RuleEngine* rule_engine, bool debug_mode)
-    : queue_num_(queue_num), rule_engine_(rule_engine), debug_mode_(debug_mode),
-      nfq_handle_(nullptr), queue_handle_(nullptr), netlink_fd_(-1),
-      tcp_reassembler_(std::make_unique<TCPReassembler>()) {
-    
-    LOG_DEBUG(debug_mode_, "PacketHandler initialized for queue " + std::to_string(queue_num_));
-}
+PacketHandler::PacketHandler(uint16_t queue_num, size_t max_connections)
+    : queue_num_(queue_num),
+      max_connections_(max_connections),
+      nfq_handle_(nullptr),
+      nfq_queue_(nullptr),
+      running_(false) {}
 
 PacketHandler::~PacketHandler() {
     Stop();
 }
 
 // ============================================================
-// INITIALIZATION
+// INITIALIZE
 // ============================================================
 bool PacketHandler::Initialize() {
-    std::cout << "🔧 Initializing NFQUEUE handler for queue " << queue_num_ << std::endl;
-    
-    // Open NFQUEUE library handle
+    // Open NFQueue handle
     nfq_handle_ = nfq_open();
     if (!nfq_handle_) {
-        std::cerr << "❌ Error: Cannot open NFQUEUE handle" << std::endl;
-        std::cerr << "   Make sure you have CAP_NET_ADMIN capability (run as root)" << std::endl;
+        std::cerr << "❌ ERROR: nfq_open() failed" << std::endl;
         return false;
     }
 
-    // Unbind existing nf_queue handler for AF_INET (if any)
+    // Unbind existing handler (if any)
     if (nfq_unbind_pf(nfq_handle_, AF_INET) < 0) {
-        LOG_DEBUG(debug_mode_, "Cannot unbind existing NFQUEUE handler (might not exist)");
+        std::cerr << "⚠️  WARNING: nfq_unbind_pf() failed (may be normal)" << std::endl;
     }
 
-    // Bind NFQUEUE handler to AF_INET
+    // Bind to AF_INET
     if (nfq_bind_pf(nfq_handle_, AF_INET) < 0) {
-        std::cerr << "❌ Error: Cannot bind NFQUEUE to AF_INET" << std::endl;
+        std::cerr << "❌ ERROR: nfq_bind_pf() failed" << std::endl;
         nfq_close(nfq_handle_);
-        nfq_handle_ = nullptr;
         return false;
     }
 
-    // Create queue with callback
-    queue_handle_ = nfq_create_queue(nfq_handle_, queue_num_, &PacketCallbackWrapper, this);
-    if (!queue_handle_) {
-        std::cerr << "❌ Error: Cannot create NFQUEUE " << queue_num_ << std::endl;
-        std::cerr << "   Make sure the queue is not already in use" << std::endl;
-        std::cerr << "   Try: sudo iptables -D FORWARD -j NFQUEUE --queue-num " << queue_num_ << std::endl;
+    // Create queue
+    nfq_queue_ = nfq_create_queue(nfq_handle_, queue_num_, &nfq_callback, this);
+    if (!nfq_queue_) {
+        std::cerr << "❌ ERROR: nfq_create_queue() failed for queue " << queue_num_ << std::endl;
         nfq_close(nfq_handle_);
-        nfq_handle_ = nullptr;
         return false;
     }
 
-    // Set copy mode to get entire packet
-    if (nfq_set_mode(queue_handle_, NFQNL_COPY_PACKET, 0xffff) < 0) {
-        std::cerr << "❌ Error: Cannot set NFQUEUE copy mode" << std::endl;
+    // Set copy mode (full packet)
+    if (nfq_set_mode(nfq_queue_, NFQNL_COPY_PACKET, 0xFFFF) < 0) {
+        std::cerr << "❌ ERROR: nfq_set_mode() failed" << std::endl;
+        nfq_destroy_queue(nfq_queue_);
+        nfq_close(nfq_handle_);
         return false;
     }
 
-    // Get netlink socket file descriptor
-    netlink_fd_ = nfq_fd(nfq_handle_);
-    if (netlink_fd_ < 0) {
-        std::cerr << "❌ Error: Cannot get netlink file descriptor" << std::endl;
-        return false;
+    // Set queue length
+    if (nfq_set_queue_maxlen(nfq_queue_, 10000) < 0) {
+        std::cerr << "⚠️  WARNING: nfq_set_queue_maxlen() failed" << std::endl;
     }
 
-    std::cout << "✅ NFQUEUE " << queue_num_ << " initialized successfully" << std::endl;
-    std::cout << "   Netlink FD: " << netlink_fd_ << std::endl;
-    
+    std::cout << "✅ PacketHandler initialized (queue " << queue_num_ << ")" << std::endl;
     return true;
 }
 
 // ============================================================
-// START PACKET PROCESSING LOOP
+// START / STOP
 // ============================================================
-void PacketHandler::Start(PacketCallback callback) {
-    if (!nfq_handle_ || !queue_handle_) {
-        std::cerr << "❌ Error: PacketHandler not initialized" << std::endl;
-        return;
+void PacketHandler::Start() {
+    if (running_.exchange(true)) {
+        return;  // Already running
     }
 
-    packet_callback_ = callback;
-    running_.store(true, std::memory_order_release);
-
-    std::cout << "🚀 Starting packet processing on queue " << queue_num_ << std::endl;
-    std::cout << "   Waiting for packets..." << std::endl;
-    
-    char buffer[4096] __attribute__ ((aligned));
-    int received_bytes;
-
-    while (running_.load(std::memory_order_acquire)) {
-        try {
-            // Receive packets from netlink socket
-            received_bytes = recv(netlink_fd_, buffer, sizeof(buffer), 0);
-            
-            if (received_bytes < 0) {
-                if (errno == ENOBUFS) {
-                    std::cerr << "⚠️  Warning: Packet buffer overrun - packets dropped by kernel" << std::endl;
-                    std::cerr << "   Consider increasing buffer size or processing faster" << std::endl;
-                    continue;
-                }
-                
-                if (errno == EINTR || !running_.load(std::memory_order_acquire)) {
-                    break; // Interrupted or shutting down
-                }
-                
-                std::cerr << "❌ Error receiving packets: " << strerror(errno) << std::endl;
-                break;
-            }
-
-            if (received_bytes == 0) {
-                LOG_DEBUG(debug_mode_, "Received 0 bytes from netlink socket");
-                continue;
-            }
-
-            // Process the netlink message
-            nfq_handle_packet(nfq_handle_, buffer, received_bytes);
-
-        } catch (const std::exception& e) {
-            std::cerr << "❌ Exception in packet processing loop: " << e.what() << std::endl;
-        } catch (...) {
-            std::cerr << "❌ Unknown exception in packet processing loop" << std::endl;
-        }
-    }
-
-    std::cout << "🛑 Packet processing stopped" << std::endl;
+    processing_thread_ = std::thread(&PacketHandler::ProcessLoop, this);
+    std::cout << "🚀 PacketHandler processing thread started" << std::endl;
 }
 
-// ============================================================
-// STOP PROCESSING
-// ============================================================
 void PacketHandler::Stop() {
-    running_.store(false, std::memory_order_release);
+    if (!running_.exchange(false)) {
+        return;  // Not running
+    }
 
-    if (queue_handle_) {
-        nfq_destroy_queue(queue_handle_);
-        queue_handle_ = nullptr;
+    if (processing_thread_.joinable()) {
+        processing_thread_.join();
+    }
+
+    if (nfq_queue_) {
+        nfq_destroy_queue(nfq_queue_);
+        nfq_queue_ = nullptr;
     }
 
     if (nfq_handle_) {
@@ -171,25 +122,59 @@ void PacketHandler::Stop() {
         nfq_handle_ = nullptr;
     }
 
-    // Cleanup TCP reassembler
-    if (tcp_reassembler_) {
-        tcp_reassembler_->Cleanup();
-    }
-
-    // Clear blocked connections
-    {
-        std::lock_guard<std::mutex> lock(connections_mutex_);
-        blocked_connections_.clear();
-    }
-
-    std::cout << "🧹 PacketHandler stopped and cleaned up" << std::endl;
+    std::cout << "🛑 PacketHandler stopped" << std::endl;
 }
+
+// ============================================================
+// PROCESS LOOP
+// ============================================================
+void PacketHandler::ProcessLoop() {
+    int fd = nfq_fd(nfq_handle_);
+    char buf[65536];
+
+    std::cout << "📡 PacketHandler listening on fd=" << fd << std::endl;
+
+    while (running_) {
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(fd, &read_fds);
+
+        struct timeval tv;
+        tv.tv_sec = 1;
+        tv.tv_usec = 0;
+
+        int ret = select(fd + 1, &read_fds, nullptr, nullptr, &tv);
+        if (ret < 0) {
+            if (errno == EINTR) continue;
+            std::cerr << "❌ select() error: " << strerror(errno) << std::endl;
+            break;
+        }
+
+        if (ret == 0) continue;  // Timeout
+
+        int len = recv(fd, buf, sizeof(buf), 0);
+        if (len < 0) {
+            if (errno == ENOBUFS) {
+                packet_buffer_full_.fetch_add(1, std::memory_order_relaxed);
+                continue;
+            }
+            if (errno == EINTR) continue;
+            std::cerr << "❌ recv() error: " << strerror(errno) << std::endl;
+            break;
+        }
+
+        nfq_handle_packet(nfq_handle_, buf, len);
+    }
+
+    std::cout << "📡 PacketHandler loop exited" << std::endl;
+}
+
 
 // ============================================================
 // MAIN PACKET HANDLING FUNCTION
 // ============================================================
 int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
-                               struct nfq_data *nfa) {
+                                nfq_data *nfa) {
     HighResTimer timer;
     
     total_packets_.fetch_add(1, std::memory_order_relaxed);

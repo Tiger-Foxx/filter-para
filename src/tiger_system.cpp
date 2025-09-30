@@ -97,7 +97,7 @@ bool TigerSystem::Initialize() {
     std::cout << "\n✅ Tiger-Fox System initialized successfully!" << std::endl;
     std::cout << "   Process PID: " << process_pid_ << std::endl;
     std::cout << "   Queue number: " << queue_num_ << std::endl;
-    std::cout << "   Workers: " << worker_pool_->GetStats().num_workers << std::endl;
+    std::cout << "   Workers: " << num_workers_ << std::endl;
     std::cout << "\n";
     
     return true;

@@ -261,11 +261,13 @@ void WorkerPool::SetWorkerAffinity(size_t worker_id) {
 // STATISTICS
 // ============================================================
 WorkerPool::Stats WorkerPool::GetStats() const {
-    Stats stats;
-    stats.num_workers = num_workers_;
-    stats.total_packets = 0;
-    stats.total_drops = 0;
-    stats.queue_overflows = queue_overflows_.load();
+    Stats stats{};
+    stats.num_workers = num_workers_;  // ✅
+    stats.total_dispatched = total_dispatched_.load();
+    stats.total_processed = 0;
+    stats.total_dropped = 0;
+    stats.total_accepted = 0;
+    stats.queue_overflows = queue_overflows_.load();  // ✅
     
     for (const auto& worker : workers_) {
         uint64_t packets = worker.packets_processed.load();
@@ -273,13 +275,14 @@ WorkerPool::Stats WorkerPool::GetStats() const {
         uint64_t accepts = worker.packets_accepted.load();
         double total_time = worker.total_processing_time_ms.load();
         
-        stats.packets_per_worker.push_back(packets);
-        stats.drops_per_worker.push_back(drops);
-        stats.accepts_per_worker.push_back(accepts);
-        stats.avg_time_per_worker.push_back(packets > 0 ? total_time / packets : 0.0);
+        stats.packets_per_worker.push_back(packets);  // ✅
+        stats.drops_per_worker.push_back(drops);      // ✅
+        stats.accepts_per_worker.push_back(accepts);  // ✅
+        stats.avg_time_per_worker.push_back(packets > 0 ? total_time / packets : 0.0);  // ✅
         
-        stats.total_packets += packets;
-        stats.total_drops += drops;
+        stats.total_processed += packets;
+        stats.total_dropped += drops;
+        stats.total_accepted += accepts;
     }
     
     stats.load_variance = CalculateLoadVariance();
@@ -308,6 +311,25 @@ void WorkerPool::PrintStats() const {
     }
 }
 
+// double WorkerPool::CalculateLoadVariance() const {
+//     if (workers_.empty()) return 0.0;
+    
+//     double mean = 0.0;
+//     for (const auto& worker : workers_) {
+//         mean += worker.packets_processed.load();
+//     }
+//     mean /= workers_.size();
+    
+//     double variance = 0.0;
+//     for (const auto& worker : workers_) {
+//         double diff = worker.packets_processed.load() - mean;
+//         variance += diff * diff;
+//     }
+//     variance /= workers_.size();
+    
+//     return std::sqrt(variance);
+// }
+
 double WorkerPool::CalculateLoadVariance() const {
     if (workers_.empty()) return 0.0;
     
@@ -322,7 +344,6 @@ double WorkerPool::CalculateLoadVariance() const {
         double diff = worker.packets_processed.load() - mean;
         variance += diff * diff;
     }
-    variance /= workers_.size();
     
-    return std::sqrt(variance);
+    return variance / workers_.size();
 }
