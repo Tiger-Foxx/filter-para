@@ -22,7 +22,6 @@
 Tiger-Fox is a **high-performance network filtering system** written in C++ that implements a **hybrid multi-worker architecture** for inline packet filtering with true L7 HTTP analysis via optimized TCP reassembly.
 
 **Key Characteristics:**
-- **Academic Research Project** - Master's in Computer Engineering
 - **Mode Unique: Hybrid Multi-Worker** - No sequential mode in this implementation
 - **Real NFQUEUE Filtering** - Actual DROP/ACCEPT verdicts on live traffic
 - **Production-Inspired Design** - Architecture inspired by Suricata/Snort IDS
