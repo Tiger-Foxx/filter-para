@@ -24,7 +24,6 @@ sudo apt install -y \
 # Verify installations
 echo "📋 Verifying installations..."
 
-# Check compiler
 echo "GCC version:"
 g++ --version | head -1
 
@@ -52,10 +51,7 @@ if [ -f /usr/include/nlohmann/json.hpp ]; then
 elif [ -f /usr/local/include/nlohmann/json.hpp ]; then
     echo "✅ nlohmann-json found (local)"
 else
-    echo "❌ nlohmann-json missing"
-    echo "Installing nlohmann-json manually..."
-    
-    # Fallback installation
+    echo "⚠️ nlohmann-json not found, installing manually..."
     cd /tmp
     wget https://github.com/nlohmann/json/releases/download/v3.11.2/json.hpp
     sudo mkdir -p /usr/local/include/nlohmann
@@ -70,8 +66,3 @@ echo "Next steps:"
 echo "1. Run: chmod +x build.sh"
 echo "2. Run: ./build.sh"
 echo "3. Test: sudo ./build/tiger-fox --help"
-echo ""
-echo "For CloudLab setup:"
-echo "- Make sure you have root access"
-echo "- Enable IP forwarding: sudo sysctl -w net.ipv4.ip_forward=1"
-echo "- Configure iptables FORWARD rules (done automatically by tiger-fox)"

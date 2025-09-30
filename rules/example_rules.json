@@ -1,0 +1,5024 @@
+{
+  "rules": [
+    
+    {
+      "id": "block_tor_ips",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["192.42.116.0/24", "199.87.154.0/24", "185.220.100.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_china_russia",
+      "layer": 3, 
+      "type": "ip_src_country",
+      "values": ["CN", "RU"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ssh_brute",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [22],
+      "action": "drop"
+    },
+    {
+      "id": "block_sqli_attempts",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)(union|select|insert|drop).*from", "(?i)or.*1.*=.*1"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_ua",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["sqlmap", "nmap", "masscan", "nikto"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_payload",
+      "layer": 7,
+      "type": "http_uri_regex", 
+      "values": ["(?i)<script.*>", "(?i)javascript:", "(?i)onload.*="],
+      "action": "drop"
+    },
+
+    {
+      "id": "block_iran_north_korea",
+      "layer": 3,
+      "type": "ip_src_country",
+      "values": ["IR", "KP"],
+      "action": "drop"
+    },
+    {
+      "id": "block_botnet_ips_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["45.142.122.0/24", "91.240.118.0/24", "194.147.78.0/24", "23.94.218.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_botnet_ips_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["103.253.147.0/24", "185.220.101.0/24", "188.114.97.0/24", "95.142.46.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_vpn_ranges_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["162.255.202.0/24", "172.64.80.0/24", "104.27.0.0/20"],
+      "action": "drop"
+    },
+    {
+      "id": "block_vpn_ranges_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["198.41.128.0/17", "173.245.48.0/20", "103.21.244.0/22"],
+      "action": "drop"
+    },
+    {
+      "id": "block_datacenter_ranges",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["74.125.0.0/16", "173.194.0.0/16", "72.14.192.0/18", "66.249.64.0/19"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_ranges_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["185.165.168.0/22", "82.221.128.0/24", "192.241.0.0/16", "159.203.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_ranges_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["167.99.0.0/16", "178.62.0.0/16", "46.101.0.0/16", "174.138.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_proxy_ranges",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["185.220.102.0/24", "185.220.103.0/24", "199.87.155.0/24", "192.42.117.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_geolocations",
+      "layer": 3,
+      "type": "ip_src_country",
+      "values": ["SY", "AF", "IQ", "PK", "BD"],
+      "action": "drop"
+    },
+    {
+      "id": "block_cloud_providers_abuse",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["13.107.42.0/24", "40.96.0.0/12", "52.96.0.0/12", "20.190.0.0/15"],
+      "action": "drop"
+    },
+    {
+      "id": "block_aws_abuse_ranges",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["54.230.0.0/15", "52.84.0.0/15", "54.182.0.0/16", "54.192.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_google_cloud_abuse",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["35.191.0.0/16", "130.211.0.0/22", "35.235.240.0/20", "34.64.0.0/10"],
+      "action": "drop"
+    },
+
+    {
+      "id": "block_telnet_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [23],
+      "action": "drop"
+    },
+    {
+      "id": "block_ftp_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [21],
+      "action": "drop"
+    },
+    {
+      "id": "block_smtp_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [25],
+      "action": "drop"
+    },
+    {
+      "id": "block_dns_tcp",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [53],
+      "action": "drop"
+    },
+    {
+      "id": "block_pop3_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [110],
+      "action": "drop"
+    },
+    {
+      "id": "block_imap_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [143],
+      "action": "drop"
+    },
+    {
+      "id": "block_snmp_access",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [161, 162],
+      "action": "drop"
+    },
+    {
+      "id": "block_ldap_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [389, 636],
+      "action": "drop"
+    },
+    {
+      "id": "block_smb_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [445, 139],
+      "action": "drop"
+    },
+    {
+      "id": "block_rdp_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [3389],
+      "action": "drop"
+    },
+    {
+      "id": "block_vnc_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [5900, 5901, 5902, 5903],
+      "action": "drop"
+    },
+    {
+      "id": "block_mysql_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [3306],
+      "action": "drop"
+    },
+    {
+      "id": "block_postgres_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [5432],
+      "action": "drop"
+    },
+    {
+      "id": "block_redis_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [6379],
+      "action": "drop"
+    },
+    {
+      "id": "block_mongodb_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [27017],
+      "action": "drop"
+    },
+    {
+      "id": "block_elasticsearch_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [9200, 9300],
+      "action": "drop"
+    },
+    {
+      "id": "block_kubernetes_api",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [6443, 8080, 10250],
+      "action": "drop"
+    },
+    {
+      "id": "block_docker_api",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [2375, 2376, 2377],
+      "action": "drop"
+    },
+    {
+      "id": "block_etcd_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [2379, 2380],
+      "action": "drop"
+    },
+    {
+      "id": "block_consul_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [8500, 8600],
+      "action": "drop"
+    },
+    {
+      "id": "block_cassandra_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [9042, 7000, 7001],
+      "action": "drop"
+    },
+    {
+      "id": "block_memcached_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [11211],
+      "action": "drop"
+    },
+    {
+      "id": "block_influxdb_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [8086],
+      "action": "drop"
+    },
+    {
+      "id": "block_prometheus_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [9090],
+      "action": "drop"
+    },
+    {
+      "id": "block_grafana_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [3000],
+      "action": "drop"
+    },
+    {
+      "id": "block_jenkins_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [8080, 50000],
+      "action": "drop"
+    },
+    {
+      "id": "block_gitlab_ssh",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [2222],
+      "action": "drop"
+    },
+    {
+      "id": "block_high_ports_scan",
+      "layer": 4,
+      "type": "tcp_dst_port_range",
+      "values": ["60000-65535"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ntp_amplification",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [123],
+      "action": "drop"
+    },
+    {
+      "id": "block_ssdp_amplification",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [1900],
+      "action": "drop"
+    },
+    {
+      "id": "block_netbios_access",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [137, 138],
+      "action": "drop"
+    },
+    {
+      "id": "block_dhcp_spoofing",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [67, 68],
+      "action": "drop"
+    },
+    {
+      "id": "block_tftp_access",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [69],
+      "action": "drop"
+    },
+    {
+      "id": "block_kerberos_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [88, 464],
+      "action": "drop"
+    },
+    {
+      "id": "block_ipsec_ports",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [500, 4500],
+      "action": "drop"
+    },
+
+    {
+      "id": "block_sql_injection_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)select.*from.*where", "(?i)insert.*into.*values", "(?i)update.*set.*where"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)delete.*from.*where", "(?i)drop.*table", "(?i)create.*table"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)alter.*table", "(?i)grant.*privileges", "(?i)revoke.*from"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_4",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)exec.*sp_", "(?i)execute.*sp_", "(?i)sp_executesql"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_5",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)information_schema", "(?i)sys\\.tables", "(?i)mysql\\.user"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)<script[^>]*>", "(?i)</script>", "(?i)javascript:"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)onload\\s*=", "(?i)onerror\\s*=", "(?i)onclick\\s*="],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)onmouseover\\s*=", "(?i)onfocus\\s*=", "(?i)onblur\\s*="],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_4",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)<iframe[^>]*>", "(?i)<embed[^>]*>", "(?i)<object[^>]*>"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_5",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)vbscript:", "(?i)data:text/html", "(?i)eval\\s*\\("],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.\\./", "(?i)\\.\\.\\\\", "(?i)/etc/passwd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/etc/shadow", "(?i)/etc/hosts", "(?i)/proc/self/environ"],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\\\windows\\\\system32", "(?i)c:\\\\windows", "(?i)/var/log/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_rfi_attacks",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)http://", "(?i)https://", "(?i)ftp://"],
+      "action": "drop"
+    },
+    {
+      "id": "block_php_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)php://", "(?i)data://", "(?i)expect://"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i);\\s*cat\\s+", "(?i);\\s*ls\\s+", "(?i);\\s*pwd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i);\\s*whoami", "(?i);\\s*id\\s+", "(?i);\\s*uname"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\|\\s*cat\\s+", "(?i)\\|\\s*ls\\s+", "(?i)\\|\\s*nc\\s+"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_4",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$\\(cat\\s+", "(?i)\\$\\(ls\\s+", "(?i)`cat\\s+"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xxe_attacks",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)<!entity", "(?i)<!\\[cdata\\[", "(?i)&xxe;"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["burpsuite", "zap", "w3af", "acunetix"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["nessus", "openvas", "qualys", "rapid7"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_3",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["metasploit", "exploit", "payload", "shellcode"],
+      "action": "drop"
+    },
+    {
+      "id": "block_bot_user_agents_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["bot", "crawler", "spider", "scraper"],
+      "action": "drop"
+    },
+    {
+      "id": "block_bot_user_agents_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["wget", "python-requests", "libwww-perl"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_headers_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "x-forwarded-for",
+      "values": ["127.0.0.1", "localhost", "::1"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_headers_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "referer",
+      "values": ["javascript:", "data:", "vbscript:"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_methods",
+      "layer": 7,
+      "type": "http_method",
+      "values": ["TRACE", "TRACK", "CONNECT", "OPTIONS"],
+      "action": "drop"
+    },
+    {
+      "id": "block_admin_paths_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/admin", "(?i)/administrator", "(?i)/wp-admin"],
+      "action": "drop"
+    },
+    {
+      "id": "block_admin_paths_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/phpmyadmin", "(?i)/mysql", "(?i)/adminer"],
+      "action": "drop"
+    },
+    {
+      "id": "block_config_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.conf$", "(?i)\\.config$", "(?i)\\.ini$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_backup_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.bak$", "(?i)\\.backup$", "(?i)\\.old$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_log_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.log$", "(?i)/logs/", "(?i)/var/log/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_git_exposure",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.git/", "(?i)/\\.git", "(?i)\\.gitignore"],
+      "action": "drop"
+    },
+    {
+      "id": "block_svn_exposure",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.svn/", "(?i)/\\.svn", "(?i)entries"],
+      "action": "drop"
+    },
+    {
+      "id": "block_env_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.env", "(?i)environment", "(?i)\\.htaccess"],
+      "action": "drop"
+    },
+    {
+      "id": "block_upload_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/upload", "(?i)/uploads/", "(?i)/files/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_shell_uploads",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.php\\?", "(?i)shell\\.php", "(?i)cmd\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_wordpress_exploits_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/wp-content/", "(?i)/wp-includes/", "(?i)wp-config\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_wordpress_exploits_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)wp-login\\.php", "(?i)xmlrpc\\.php", "(?i)/wp-json/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_drupal_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/sites/default/", "(?i)/modules/", "(?i)settings\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_joomla_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/administrator/", "(?i)/components/", "(?i)configuration\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_apache_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/server-status", "(?i)/server-info", "(?i)\\.htpasswd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nginx_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/nginx_status", "(?i)/status", "(?i)stub_status"],
+      "action": "drop"
+    },
+    {
+      "id": "block_tomcat_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/manager/", "(?i)/host-manager/", "(?i)/examples/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_spring_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/actuator/", "(?i)/health", "(?i)/metrics"],
+      "action": "drop"
+    },
+    {
+      "id": "block_laravel_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/telescope/", "(?i)/horizon/", "(?i)\\.env"],
+      "action": "drop"
+    },
+    {
+      "id": "block_django_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/admin/", "(?i)/debug/", "(?i)settings\\.py"],
+      "action": "drop"
+    },
+    {
+      "id": "block_struts_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)Content-Type.*multipart", "(?i)%{", "(?i)#cmd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_deserialization_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)java\\.lang", "(?i)Runtime\\.getRuntime", "(?i)ProcessBuilder"],
+      "action": "drop"
+    },
+    {
+      "id": "block_deserialization_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)ObjectInputStream", "(?i)readObject", "(?i)serialVersionUID"],
+      "action": "drop"
+    },
+    {
+      "id": "block_template_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\{\\{", "(?i)\\}\\}", "(?i)\\$\\{"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nosql_injection_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$where", "(?i)\\$ne", "(?i)\\$gt"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nosql_injection_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$regex", "(?i)\\$exists", "(?i)\\$in"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ldap_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\(\\|", "(?i)\\(\\&", "(?i)\\*\\)"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xpath_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)or\\s+1=1", "(?i)and\\s+1=1", "(?i)'\\s+or\\s+'"],
+      "action": "drop"
+    },
+    {
+      "id": "block_crlf_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%0d%0a", "(?i)\\r\\n", "(?i)%0a"],
+      "action": "drop"
+    },
+    {
+      "id": "block_host_header_injection",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "host",
+      "values": ["attacker.com", "evil.com", "malicious.net"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_encoding_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%u00", "(?i)%c0%af", "(?i)%e0%80%af"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_encoding_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%25", "(?i)%2e%2e", "(?i)%c1%1c"],
+      "action": "drop"
+    },
+    {
+      "id": "block_buffer_overflow_attempts",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["A{100,}", "\\x90{10,}", "\\x41{50,}"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_payloads_1",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)base64_decode", "(?i)eval\\(", "(?i)system\\("],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_payloads_2",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)shell_exec", "(?i)passthru", "(?i)exec\\("],
+      "action": "drop"
+    },
+    {
+      "id": "block_webshell_indicators",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)c99shell", "(?i)r57shell", "(?i)b374k"],
+      "action": "drop"
+    },
+    {
+      "id": "block_reverse_shell_1",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)/bin/sh", "(?i)/bin/bash", "(?i)nc\\s+-e"],
+      "action": "drop"
+    },
+    {
+      "id": "block_reverse_shell_2",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)python.*socket", "(?i)perl.*socket", "(?i)ruby.*socket"],
+      "action": "drop"
+    },
+    {
+      "id": "block_dns_malware_domains",
+      "layer": 7,
+      "type": "dns_query_contains",
+      "values": ["malware.com", "trojan.net", "virus.org", "botnet.info"],
+      "action": "drop"
+    },
+    {
+      "id": "block_tor_domains",
+      "layer": 7,
+      "type": "dns_query_contains",
+      "values": [".onion", "torproject.org", "duckduckgo.com"],
+      "action": "drop"
+    },
+    {
+      "id": "block_cryptocurrency_mining",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)coinhive", "(?i)cryptonight", "(?i)minergate"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_files_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.exe$", "(?i)\\.scr$", "(?i)\\.bat$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_files_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.vbs$", "(?i)\\.ps1$", "(?i)\\.jar$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_encoded_attacks_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%3cscript", "(?i)%3e", "(?i)%22"],
+      "action": "drop"
+    },
+    {
+      "id": "block_encoded_attacks_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%27", "(?i)%3d", "(?i)%20union%20"],
+      "action": "drop"
+    },
+    {
+      "id": "block_protocol_anomalies_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "content-length",
+      "values": ["-1", "999999999", "0x"],
+      "action": "drop"
+    },
+    {
+      "id": "block_protocol_anomalies_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "transfer-encoding",
+      "values": ["chunked", "gzip", "deflate"],
+      "action": "drop"
+    },
+    {
+      "id": "block_slow_http_attacks",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "connection",
+      "values": ["keep-alive", "close"],
+      "action": "drop"
+    },
+    {
+      "id": "block_rate_limit_bypass",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "x-real-ip",
+      "values": ["127.0.0.1", "localhost", "0.0.0.0"],
+      "action": "drop"
+    }
+    ,
+    {
+      "id": "block_china_russia",
+      "layer": 3, 
+      "type": "ip_src_country",
+      "values": ["CN", "RU"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ssh_brute",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [22],
+      "action": "drop"
+    },
+    {
+      "id": "block_sqli_attempts",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)(union|select|insert|drop).*from", "(?i)or.*1.*=.*1"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_ua",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["sqlmap", "nmap", "masscan", "nikto"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_payload",
+      "layer": 7,
+      "type": "http_uri_regex", 
+      "values": ["(?i)<script.*>", "(?i)javascript:", "(?i)onload.*="],
+      "action": "drop"
+    },
+
+    {
+      "id": "block_iran_north_korea",
+      "layer": 3,
+      "type": "ip_src_country",
+      "values": ["IR", "KP"],
+      "action": "drop"
+    },
+    {
+      "id": "block_botnet_ips_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["45.142.122.0/24", "91.240.118.0/24", "194.147.78.0/24", "23.94.218.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_botnet_ips_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["103.253.147.0/24", "185.220.101.0/24", "188.114.97.0/24", "95.142.46.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_vpn_ranges_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["162.255.202.0/24", "172.64.80.0/24", "104.27.0.0/20"],
+      "action": "drop"
+    },
+    {
+      "id": "block_vpn_ranges_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["198.41.128.0/17", "173.245.48.0/20", "103.21.244.0/22"],
+      "action": "drop"
+    },
+    {
+      "id": "block_datacenter_ranges",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["74.125.0.0/16", "173.194.0.0/16", "72.14.192.0/18", "66.249.64.0/19"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_ranges_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["185.165.168.0/22", "82.221.128.0/24", "192.241.0.0/16", "159.203.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_ranges_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["167.99.0.0/16", "178.62.0.0/16", "46.101.0.0/16", "174.138.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_proxy_ranges",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["185.220.102.0/24", "185.220.103.0/24", "199.87.155.0/24", "192.42.117.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_geolocations",
+      "layer": 3,
+      "type": "ip_src_country",
+      "values": ["SY", "AF", "IQ", "PK", "BD"],
+      "action": "drop"
+    },
+    {
+      "id": "block_cloud_providers_abuse",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["13.107.42.0/24", "40.96.0.0/12", "52.96.0.0/12", "20.190.0.0/15"],
+      "action": "drop"
+    },
+    {
+      "id": "block_aws_abuse_ranges",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["54.230.0.0/15", "52.84.0.0/15", "54.182.0.0/16", "54.192.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_google_cloud_abuse",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["35.191.0.0/16", "130.211.0.0/22", "35.235.240.0/20", "34.64.0.0/10"],
+      "action": "drop"
+    },
+
+    {
+      "id": "block_telnet_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [23],
+      "action": "drop"
+    },
+    {
+      "id": "block_ftp_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [21],
+      "action": "drop"
+    },
+    {
+      "id": "block_smtp_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [25],
+      "action": "drop"
+    },
+    {
+      "id": "block_dns_tcp",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [53],
+      "action": "drop"
+    },
+    {
+      "id": "block_pop3_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [110],
+      "action": "drop"
+    },
+    {
+      "id": "block_imap_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [143],
+      "action": "drop"
+    },
+    {
+      "id": "block_snmp_access",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [161, 162],
+      "action": "drop"
+    },
+    {
+      "id": "block_ldap_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [389, 636],
+      "action": "drop"
+    },
+    {
+      "id": "block_smb_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [445, 139],
+      "action": "drop"
+    },
+    {
+      "id": "block_rdp_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [3389],
+      "action": "drop"
+    },
+    {
+      "id": "block_vnc_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [5900, 5901, 5902, 5903],
+      "action": "drop"
+    },
+    {
+      "id": "block_mysql_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [3306],
+      "action": "drop"
+    },
+    {
+      "id": "block_postgres_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [5432],
+      "action": "drop"
+    },
+    {
+      "id": "block_redis_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [6379],
+      "action": "drop"
+    },
+    {
+      "id": "block_mongodb_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [27017],
+      "action": "drop"
+    },
+    {
+      "id": "block_elasticsearch_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [9200, 9300],
+      "action": "drop"
+    },
+    {
+      "id": "block_kubernetes_api",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [6443, 8080, 10250],
+      "action": "drop"
+    },
+    {
+      "id": "block_docker_api",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [2375, 2376, 2377],
+      "action": "drop"
+    },
+    {
+      "id": "block_etcd_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [2379, 2380],
+      "action": "drop"
+    },
+    {
+      "id": "block_consul_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [8500, 8600],
+      "action": "drop"
+    },
+    {
+      "id": "block_cassandra_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [9042, 7000, 7001],
+      "action": "drop"
+    },
+    {
+      "id": "block_memcached_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [11211],
+      "action": "drop"
+    },
+    {
+      "id": "block_influxdb_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [8086],
+      "action": "drop"
+    },
+    {
+      "id": "block_prometheus_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [9090],
+      "action": "drop"
+    },
+    {
+      "id": "block_grafana_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [3000],
+      "action": "drop"
+    },
+    {
+      "id": "block_jenkins_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [8080, 50000],
+      "action": "drop"
+    },
+    {
+      "id": "block_gitlab_ssh",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [2222],
+      "action": "drop"
+    },
+    {
+      "id": "block_high_ports_scan",
+      "layer": 4,
+      "type": "tcp_dst_port_range",
+      "values": ["60000-65535"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ntp_amplification",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [123],
+      "action": "drop"
+    },
+    {
+      "id": "block_ssdp_amplification",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [1900],
+      "action": "drop"
+    },
+    {
+      "id": "block_netbios_access",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [137, 138],
+      "action": "drop"
+    },
+    {
+      "id": "block_dhcp_spoofing",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [67, 68],
+      "action": "drop"
+    },
+    {
+      "id": "block_tftp_access",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [69],
+      "action": "drop"
+    },
+    {
+      "id": "block_kerberos_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [88, 464],
+      "action": "drop"
+    },
+    {
+      "id": "block_ipsec_ports",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [500, 4500],
+      "action": "drop"
+    },
+
+    {
+      "id": "block_sql_injection_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)select.*from.*where", "(?i)insert.*into.*values", "(?i)update.*set.*where"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)delete.*from.*where", "(?i)drop.*table", "(?i)create.*table"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)alter.*table", "(?i)grant.*privileges", "(?i)revoke.*from"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_4",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)exec.*sp_", "(?i)execute.*sp_", "(?i)sp_executesql"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_5",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)information_schema", "(?i)sys\\.tables", "(?i)mysql\\.user"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)<script[^>]*>", "(?i)</script>", "(?i)javascript:"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)onload\\s*=", "(?i)onerror\\s*=", "(?i)onclick\\s*="],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)onmouseover\\s*=", "(?i)onfocus\\s*=", "(?i)onblur\\s*="],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_4",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)<iframe[^>]*>", "(?i)<embed[^>]*>", "(?i)<object[^>]*>"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_5",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)vbscript:", "(?i)data:text/html", "(?i)eval\\s*\\("],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.\\./", "(?i)\\.\\.\\\\", "(?i)/etc/passwd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/etc/shadow", "(?i)/etc/hosts", "(?i)/proc/self/environ"],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\\\windows\\\\system32", "(?i)c:\\\\windows", "(?i)/var/log/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_rfi_attacks",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)http://", "(?i)https://", "(?i)ftp://"],
+      "action": "drop"
+    },
+    {
+      "id": "block_php_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)php://", "(?i)data://", "(?i)expect://"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i);\\s*cat\\s+", "(?i);\\s*ls\\s+", "(?i);\\s*pwd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i);\\s*whoami", "(?i);\\s*id\\s+", "(?i);\\s*uname"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\|\\s*cat\\s+", "(?i)\\|\\s*ls\\s+", "(?i)\\|\\s*nc\\s+"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_4",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$\\(cat\\s+", "(?i)\\$\\(ls\\s+", "(?i)`cat\\s+"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xxe_attacks",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)<!entity", "(?i)<!\\[cdata\\[", "(?i)&xxe;"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["burpsuite", "zap", "w3af", "acunetix"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["nessus", "openvas", "qualys", "rapid7"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_3",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["metasploit", "exploit", "payload", "shellcode"],
+      "action": "drop"
+    },
+    {
+      "id": "block_bot_user_agents_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["bot", "crawler", "spider", "scraper"],
+      "action": "drop"
+    },
+    {
+      "id": "block_bot_user_agents_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["wget",  "python-requests", "libwww-perl"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_headers_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "x-forwarded-for",
+      "values": ["127.0.0.1", "localhost", "::1"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_headers_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "referer",
+      "values": ["javascript:", "data:", "vbscript:"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_methods",
+      "layer": 7,
+      "type": "http_method",
+      "values": ["TRACE", "TRACK", "CONNECT", "OPTIONS"],
+      "action": "drop"
+    },
+    {
+      "id": "block_admin_paths_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/admin", "(?i)/administrator", "(?i)/wp-admin"],
+      "action": "drop"
+    },
+    {
+      "id": "block_admin_paths_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/phpmyadmin", "(?i)/mysql", "(?i)/adminer"],
+      "action": "drop"
+    },
+    {
+      "id": "block_config_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.conf$", "(?i)\\.config$", "(?i)\\.ini$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_backup_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.bak$", "(?i)\\.backup$", "(?i)\\.old$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_log_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.log$", "(?i)/logs/", "(?i)/var/log/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_git_exposure",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.git/", "(?i)/\\.git", "(?i)\\.gitignore"],
+      "action": "drop"
+    },
+    {
+      "id": "block_svn_exposure",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.svn/", "(?i)/\\.svn", "(?i)entries"],
+      "action": "drop"
+    },
+    {
+      "id": "block_env_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.env", "(?i)environment", "(?i)\\.htaccess"],
+      "action": "drop"
+    },
+    {
+      "id": "block_upload_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/upload", "(?i)/uploads/", "(?i)/files/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_shell_uploads",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.php\\?", "(?i)shell\\.php", "(?i)cmd\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_wordpress_exploits_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/wp-content/", "(?i)/wp-includes/", "(?i)wp-config\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_wordpress_exploits_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)wp-login\\.php", "(?i)xmlrpc\\.php", "(?i)/wp-json/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_drupal_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/sites/default/", "(?i)/modules/", "(?i)settings\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_joomla_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/administrator/", "(?i)/components/", "(?i)configuration\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_apache_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/server-status", "(?i)/server-info", "(?i)\\.htpasswd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nginx_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/nginx_status", "(?i)/status", "(?i)stub_status"],
+      "action": "drop"
+    },
+    {
+      "id": "block_tomcat_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/manager/", "(?i)/host-manager/", "(?i)/examples/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_spring_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/actuator/", "(?i)/health", "(?i)/metrics"],
+      "action": "drop"
+    },
+    {
+      "id": "block_laravel_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/telescope/", "(?i)/horizon/", "(?i)\\.env"],
+      "action": "drop"
+    },
+    {
+      "id": "block_django_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/admin/", "(?i)/debug/", "(?i)settings\\.py"],
+      "action": "drop"
+    },
+    {
+      "id": "block_struts_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)Content-Type.*multipart", "(?i)%{", "(?i)#cmd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_deserialization_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)java\\.lang", "(?i)Runtime\\.getRuntime", "(?i)ProcessBuilder"],
+      "action": "drop"
+    },
+    {
+      "id": "block_deserialization_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)ObjectInputStream", "(?i)readObject", "(?i)serialVersionUID"],
+      "action": "drop"
+    },
+    {
+      "id": "block_template_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\{\\{", "(?i)\\}\\}", "(?i)\\$\\{"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nosql_injection_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$where", "(?i)\\$ne", "(?i)\\$gt"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nosql_injection_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$regex", "(?i)\\$exists", "(?i)\\$in"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ldap_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\(\\|", "(?i)\\(\\&", "(?i)\\*\\)"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xpath_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)or\\s+1=1", "(?i)and\\s+1=1", "(?i)'\\s+or\\s+'"],
+      "action": "drop"
+    },
+    {
+      "id": "block_crlf_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%0d%0a", "(?i)\\r\\n", "(?i)%0a"],
+      "action": "drop"
+    },
+    {
+      "id": "block_host_header_injection",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "host",
+      "values": ["attacker.com", "evil.com", "malicious.net"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_encoding_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%u00", "(?i)%c0%af", "(?i)%e0%80%af"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_encoding_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%25", "(?i)%2e%2e", "(?i)%c1%1c"],
+      "action": "drop"
+    },
+    {
+      "id": "block_buffer_overflow_attempts",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["A{100,}", "\\x90{10,}", "\\x41{50,}"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_payloads_1",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)base64_decode", "(?i)eval\\(", "(?i)system\\("],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_payloads_2",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)shell_exec", "(?i)passthru", "(?i)exec\\("],
+      "action": "drop"
+    },
+    {
+      "id": "block_webshell_indicators",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)c99shell", "(?i)r57shell", "(?i)b374k"],
+      "action": "drop"
+    },
+    {
+      "id": "block_reverse_shell_1",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)/bin/sh", "(?i)/bin/bash", "(?i)nc\\s+-e"],
+      "action": "drop"
+    },
+    {
+      "id": "block_reverse_shell_2",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)python.*socket", "(?i)perl.*socket", "(?i)ruby.*socket"],
+      "action": "drop"
+    },
+    {
+      "id": "block_dns_malware_domains",
+      "layer": 7,
+      "type": "dns_query_contains",
+      "values": ["malware.com", "trojan.net", "virus.org", "botnet.info"],
+      "action": "drop"
+    },
+    {
+      "id": "block_tor_domains",
+      "layer": 7,
+      "type": "dns_query_contains",
+      "values": [".onion", "torproject.org", "duckduckgo.com"],
+      "action": "drop"
+    },
+    {
+      "id": "block_cryptocurrency_mining",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)coinhive", "(?i)cryptonight", "(?i)minergate"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_files_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.exe$", "(?i)\\.scr$", "(?i)\\.bat$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_files_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.vbs$", "(?i)\\.ps1$", "(?i)\\.jar$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_encoded_attacks_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%3cscript", "(?i)%3e", "(?i)%22"],
+      "action": "drop"
+    },
+    {
+      "id": "block_encoded_attacks_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%27", "(?i)%3d", "(?i)%20union%20"],
+      "action": "drop"
+    },
+    {
+      "id": "block_protocol_anomalies_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "content-length",
+      "values": ["-1", "999999999", "0x"],
+      "action": "drop"
+    },
+    {
+      "id": "block_protocol_anomalies_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "transfer-encoding",
+      "values": ["chunked", "gzip", "deflate"],
+      "action": "drop"
+    },
+    {
+      "id": "block_slow_http_attacks",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "connection",
+      "values": ["keep-alive", "close"],
+      "action": "drop"
+    },
+    {
+      "id": "block_rate_limit_bypass",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "x-real-ip",
+      "values": ["127.0.0.1", "localhost", "0.0.0.0"],
+      "action": "drop"
+    },
+    {
+      "id": "block_tor_ips",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["192.42.116.0/24", "199.87.154.0/24", "185.220.100.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_china_russia",
+      "layer": 3, 
+      "type": "ip_src_country",
+      "values": ["CN", "RU"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ssh_brute",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [22],
+      "action": "drop"
+    },
+    {
+      "id": "block_sqli_attempts",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)(union|select|insert|drop).*from", "(?i)or.*1.*=.*1"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_ua",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["sqlmap", "nmap", "masscan", "nikto"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_payload",
+      "layer": 7,
+      "type": "http_uri_regex", 
+      "values": ["(?i)<script.*>", "(?i)javascript:", "(?i)onload.*="],
+      "action": "drop"
+    },
+
+    {
+      "id": "block_iran_north_korea",
+      "layer": 3,
+      "type": "ip_src_country",
+      "values": ["IR", "KP"],
+      "action": "drop"
+    },
+    {
+      "id": "block_botnet_ips_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["45.142.122.0/24", "91.240.118.0/24", "194.147.78.0/24", "23.94.218.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_botnet_ips_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["103.253.147.0/24", "185.220.101.0/24", "188.114.97.0/24", "95.142.46.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_vpn_ranges_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["162.255.202.0/24", "172.64.80.0/24", "104.27.0.0/20"],
+      "action": "drop"
+    },
+    {
+      "id": "block_vpn_ranges_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["198.41.128.0/17", "173.245.48.0/20", "103.21.244.0/22"],
+      "action": "drop"
+    },
+    {
+      "id": "block_datacenter_ranges",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["74.125.0.0/16", "173.194.0.0/16", "72.14.192.0/18", "66.249.64.0/19"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_ranges_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["185.165.168.0/22", "82.221.128.0/24", "192.241.0.0/16", "159.203.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_ranges_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["167.99.0.0/16", "178.62.0.0/16", "46.101.0.0/16", "174.138.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_proxy_ranges",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["185.220.102.0/24", "185.220.103.0/24", "199.87.155.0/24", "192.42.117.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_geolocations",
+      "layer": 3,
+      "type": "ip_src_country",
+      "values": ["SY", "AF", "IQ", "PK", "BD"],
+      "action": "drop"
+    },
+    {
+      "id": "block_cloud_providers_abuse",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["13.107.42.0/24", "40.96.0.0/12", "52.96.0.0/12", "20.190.0.0/15"],
+      "action": "drop"
+    },
+    {
+      "id": "block_aws_abuse_ranges",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["54.230.0.0/15", "52.84.0.0/15", "54.182.0.0/16", "54.192.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_google_cloud_abuse",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["35.191.0.0/16", "130.211.0.0/22", "35.235.240.0/20", "34.64.0.0/10"],
+      "action": "drop"
+    },
+
+    {
+      "id": "block_telnet_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [23],
+      "action": "drop"
+    },
+    {
+      "id": "block_ftp_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [21],
+      "action": "drop"
+    },
+    {
+      "id": "block_smtp_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [25],
+      "action": "drop"
+    },
+    {
+      "id": "block_dns_tcp",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [53],
+      "action": "drop"
+    },
+    {
+      "id": "block_pop3_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [110],
+      "action": "drop"
+    },
+    {
+      "id": "block_imap_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [143],
+      "action": "drop"
+    },
+    {
+      "id": "block_snmp_access",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [161, 162],
+      "action": "drop"
+    },
+    {
+      "id": "block_ldap_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [389, 636],
+      "action": "drop"
+    },
+    {
+      "id": "block_smb_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [445, 139],
+      "action": "drop"
+    },
+    {
+      "id": "block_rdp_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [3389],
+      "action": "drop"
+    },
+    {
+      "id": "block_vnc_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [5900, 5901, 5902, 5903],
+      "action": "drop"
+    },
+    {
+      "id": "block_mysql_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [3306],
+      "action": "drop"
+    },
+    {
+      "id": "block_postgres_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [5432],
+      "action": "drop"
+    },
+    {
+      "id": "block_redis_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [6379],
+      "action": "drop"
+    },
+    {
+      "id": "block_mongodb_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [27017],
+      "action": "drop"
+    },
+    {
+      "id": "block_elasticsearch_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [9200, 9300],
+      "action": "drop"
+    },
+    {
+      "id": "block_kubernetes_api",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [6443, 8080, 10250],
+      "action": "drop"
+    },
+    {
+      "id": "block_docker_api",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [2375, 2376, 2377],
+      "action": "drop"
+    },
+    {
+      "id": "block_etcd_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [2379, 2380],
+      "action": "drop"
+    },
+    {
+      "id": "block_consul_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [8500, 8600],
+      "action": "drop"
+    },
+    {
+      "id": "block_cassandra_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [9042, 7000, 7001],
+      "action": "drop"
+    },
+    {
+      "id": "block_memcached_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [11211],
+      "action": "drop"
+    },
+    {
+      "id": "block_influxdb_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [8086],
+      "action": "drop"
+    },
+    {
+      "id": "block_prometheus_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [9090],
+      "action": "drop"
+    },
+    {
+      "id": "block_grafana_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [3000],
+      "action": "drop"
+    },
+    {
+      "id": "block_jenkins_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [8080, 50000],
+      "action": "drop"
+    },
+    {
+      "id": "block_gitlab_ssh",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [2222],
+      "action": "drop"
+    },
+    {
+      "id": "block_high_ports_scan",
+      "layer": 4,
+      "type": "tcp_dst_port_range",
+      "values": ["60000-65535"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ntp_amplification",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [123],
+      "action": "drop"
+    },
+    {
+      "id": "block_ssdp_amplification",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [1900],
+      "action": "drop"
+    },
+    {
+      "id": "block_netbios_access",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [137, 138],
+      "action": "drop"
+    },
+    {
+      "id": "block_dhcp_spoofing",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [67, 68],
+      "action": "drop"
+    },
+    {
+      "id": "block_tftp_access",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [69],
+      "action": "drop"
+    },
+    {
+      "id": "block_kerberos_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [88, 464],
+      "action": "drop"
+    },
+    {
+      "id": "block_ipsec_ports",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [500, 4500],
+      "action": "drop"
+    },
+
+    {
+      "id": "block_sql_injection_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)select.*from.*where", "(?i)insert.*into.*values", "(?i)update.*set.*where"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)delete.*from.*where", "(?i)drop.*table", "(?i)create.*table"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)alter.*table", "(?i)grant.*privileges", "(?i)revoke.*from"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_4",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)exec.*sp_", "(?i)execute.*sp_", "(?i)sp_executesql"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_5",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)information_schema", "(?i)sys\\.tables", "(?i)mysql\\.user"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)<script[^>]*>", "(?i)</script>", "(?i)javascript:"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)onload\\s*=", "(?i)onerror\\s*=", "(?i)onclick\\s*="],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)onmouseover\\s*=", "(?i)onfocus\\s*=", "(?i)onblur\\s*="],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_4",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)<iframe[^>]*>", "(?i)<embed[^>]*>", "(?i)<object[^>]*>"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_5",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)vbscript:", "(?i)data:text/html", "(?i)eval\\s*\\("],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.\\./", "(?i)\\.\\.\\\\", "(?i)/etc/passwd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/etc/shadow", "(?i)/etc/hosts", "(?i)/proc/self/environ"],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\\\windows\\\\system32", "(?i)c:\\\\windows", "(?i)/var/log/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_rfi_attacks",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)http://", "(?i)https://", "(?i)ftp://"],
+      "action": "drop"
+    },
+    {
+      "id": "block_php_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)php://", "(?i)data://", "(?i)expect://"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i);\\s*cat\\s+", "(?i);\\s*ls\\s+", "(?i);\\s*pwd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i);\\s*whoami", "(?i);\\s*id\\s+", "(?i);\\s*uname"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\|\\s*cat\\s+", "(?i)\\|\\s*ls\\s+", "(?i)\\|\\s*nc\\s+"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_4",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$\\(cat\\s+", "(?i)\\$\\(ls\\s+", "(?i)`cat\\s+"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xxe_attacks",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)<!entity", "(?i)<!\\[cdata\\[", "(?i)&xxe;"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["burpsuite", "zap", "w3af", "acunetix"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["nessus", "openvas", "qualys", "rapid7"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_3",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["metasploit", "exploit", "payload", "shellcode"],
+      "action": "drop"
+    },
+    {
+      "id": "block_bot_user_agents_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["bot", "crawler", "spider", "scraper"],
+      "action": "drop"
+    },
+    {
+      "id": "block_bot_user_agents_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["wget",  "python-requests", "libwww-perl"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_headers_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "x-forwarded-for",
+      "values": ["127.0.0.1", "localhost", "::1"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_headers_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "referer",
+      "values": ["javascript:", "data:", "vbscript:"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_methods",
+      "layer": 7,
+      "type": "http_method",
+      "values": ["TRACE", "TRACK", "CONNECT", "OPTIONS"],
+      "action": "drop"
+    },
+    {
+      "id": "block_admin_paths_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/admin", "(?i)/administrator", "(?i)/wp-admin"],
+      "action": "drop"
+    },
+    {
+      "id": "block_admin_paths_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/phpmyadmin", "(?i)/mysql", "(?i)/adminer"],
+      "action": "drop"
+    },
+    {
+      "id": "block_config_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.conf$", "(?i)\\.config$", "(?i)\\.ini$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_backup_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.bak$", "(?i)\\.backup$", "(?i)\\.old$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_log_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.log$", "(?i)/logs/", "(?i)/var/log/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_git_exposure",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.git/", "(?i)/\\.git", "(?i)\\.gitignore"],
+      "action": "drop"
+    },
+    {
+      "id": "block_svn_exposure",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.svn/", "(?i)/\\.svn", "(?i)entries"],
+      "action": "drop"
+    },
+    {
+      "id": "block_env_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.env", "(?i)environment", "(?i)\\.htaccess"],
+      "action": "drop"
+    },
+    {
+      "id": "block_upload_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/upload", "(?i)/uploads/", "(?i)/files/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_shell_uploads",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.php\\?", "(?i)shell\\.php", "(?i)cmd\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_wordpress_exploits_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/wp-content/", "(?i)/wp-includes/", "(?i)wp-config\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_wordpress_exploits_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)wp-login\\.php", "(?i)xmlrpc\\.php", "(?i)/wp-json/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_drupal_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/sites/default/", "(?i)/modules/", "(?i)settings\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_joomla_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/administrator/", "(?i)/components/", "(?i)configuration\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_apache_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/server-status", "(?i)/server-info", "(?i)\\.htpasswd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nginx_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/nginx_status", "(?i)/status", "(?i)stub_status"],
+      "action": "drop"
+    },
+    {
+      "id": "block_tomcat_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/manager/", "(?i)/host-manager/", "(?i)/examples/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_spring_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/actuator/", "(?i)/health", "(?i)/metrics"],
+      "action": "drop"
+    },
+    {
+      "id": "block_laravel_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/telescope/", "(?i)/horizon/", "(?i)\\.env"],
+      "action": "drop"
+    },
+    {
+      "id": "block_django_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/admin/", "(?i)/debug/", "(?i)settings\\.py"],
+      "action": "drop"
+    },
+    {
+      "id": "block_struts_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)Content-Type.*multipart", "(?i)%{", "(?i)#cmd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_deserialization_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)java\\.lang", "(?i)Runtime\\.getRuntime", "(?i)ProcessBuilder"],
+      "action": "drop"
+    },
+    {
+      "id": "block_deserialization_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)ObjectInputStream", "(?i)readObject", "(?i)serialVersionUID"],
+      "action": "drop"
+    },
+    {
+      "id": "block_template_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\{\\{", "(?i)\\}\\}", "(?i)\\$\\{"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nosql_injection_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$where", "(?i)\\$ne", "(?i)\\$gt"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nosql_injection_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$regex", "(?i)\\$exists", "(?i)\\$in"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ldap_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\(\\|", "(?i)\\(\\&", "(?i)\\*\\)"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xpath_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)or\\s+1=1", "(?i)and\\s+1=1", "(?i)'\\s+or\\s+'"],
+      "action": "drop"
+    },
+    {
+      "id": "block_crlf_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%0d%0a", "(?i)\\r\\n", "(?i)%0a"],
+      "action": "drop"
+    },
+    {
+      "id": "block_host_header_injection",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "host",
+      "values": ["attacker.com", "evil.com", "malicious.net"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_encoding_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%u00", "(?i)%c0%af", "(?i)%e0%80%af"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_encoding_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%25", "(?i)%2e%2e", "(?i)%c1%1c"],
+      "action": "drop"
+    },
+    {
+      "id": "block_buffer_overflow_attempts",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["A{100,}", "\\x90{10,}", "\\x41{50,}"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_payloads_1",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)base64_decode", "(?i)eval\\(", "(?i)system\\("],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_payloads_2",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)shell_exec", "(?i)passthru", "(?i)exec\\("],
+      "action": "drop"
+    },
+    {
+      "id": "block_webshell_indicators",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)c99shell", "(?i)r57shell", "(?i)b374k"],
+      "action": "drop"
+    },
+    {
+      "id": "block_reverse_shell_1",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)/bin/sh", "(?i)/bin/bash", "(?i)nc\\s+-e"],
+      "action": "drop"
+    },
+    {
+      "id": "block_reverse_shell_2",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)python.*socket", "(?i)perl.*socket", "(?i)ruby.*socket"],
+      "action": "drop"
+    },
+    {
+      "id": "block_dns_malware_domains",
+      "layer": 7,
+      "type": "dns_query_contains",
+      "values": ["malware.com", "trojan.net", "virus.org", "botnet.info"],
+      "action": "drop"
+    },
+    {
+      "id": "block_tor_domains",
+      "layer": 7,
+      "type": "dns_query_contains",
+      "values": [".onion", "torproject.org", "duckduckgo.com"],
+      "action": "drop"
+    },
+    {
+      "id": "block_cryptocurrency_mining",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)coinhive", "(?i)cryptonight", "(?i)minergate"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_files_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.exe$", "(?i)\\.scr$", "(?i)\\.bat$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_files_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.vbs$", "(?i)\\.ps1$", "(?i)\\.jar$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_encoded_attacks_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%3cscript", "(?i)%3e", "(?i)%22"],
+      "action": "drop"
+    },
+    {
+      "id": "block_encoded_attacks_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%27", "(?i)%3d", "(?i)%20union%20"],
+      "action": "drop"
+    },
+    {
+      "id": "block_protocol_anomalies_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "content-length",
+      "values": ["-1", "999999999", "0x"],
+      "action": "drop"
+    },
+    {
+      "id": "block_protocol_anomalies_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "transfer-encoding",
+      "values": ["chunked", "gzip", "deflate"],
+      "action": "drop"
+    },
+    {
+      "id": "block_slow_http_attacks",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "connection",
+      "values": ["keep-alive", "close"],
+      "action": "drop"
+    },
+    {
+      "id": "block_rate_limit_bypass",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "x-real-ip",
+      "values": ["127.0.0.1", "localhost", "0.0.0.0"],
+      "action": "drop"
+    }
+    ,
+    {
+      "id": "block_china_russia",
+      "layer": 3, 
+      "type": "ip_src_country",
+      "values": ["CN", "RU"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ssh_brute",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [22],
+      "action": "drop"
+    },
+    {
+      "id": "block_sqli_attempts",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)(union|select|insert|drop).*from", "(?i)or.*1.*=.*1"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_ua",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["sqlmap", "nmap", "masscan", "nikto"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_payload",
+      "layer": 7,
+      "type": "http_uri_regex", 
+      "values": ["(?i)<script.*>", "(?i)javascript:", "(?i)onload.*="],
+      "action": "drop"
+    },
+
+    {
+      "id": "block_iran_north_korea",
+      "layer": 3,
+      "type": "ip_src_country",
+      "values": ["IR", "KP"],
+      "action": "drop"
+    },
+    {
+      "id": "block_botnet_ips_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["45.142.122.0/24", "91.240.118.0/24", "194.147.78.0/24", "23.94.218.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_botnet_ips_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["103.253.147.0/24", "185.220.101.0/24", "188.114.97.0/24", "95.142.46.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_vpn_ranges_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["162.255.202.0/24", "172.64.80.0/24", "104.27.0.0/20"],
+      "action": "drop"
+    },
+    {
+      "id": "block_vpn_ranges_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["198.41.128.0/17", "173.245.48.0/20", "103.21.244.0/22"],
+      "action": "drop"
+    },
+    {
+      "id": "block_datacenter_ranges",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["74.125.0.0/16", "173.194.0.0/16", "72.14.192.0/18", "66.249.64.0/19"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_ranges_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["185.165.168.0/22", "82.221.128.0/24", "192.241.0.0/16", "159.203.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_ranges_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["167.99.0.0/16", "178.62.0.0/16", "46.101.0.0/16", "174.138.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_proxy_ranges",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["185.220.102.0/24", "185.220.103.0/24", "199.87.155.0/24", "192.42.117.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_geolocations",
+      "layer": 3,
+      "type": "ip_src_country",
+      "values": ["SY", "AF", "IQ", "PK", "BD"],
+      "action": "drop"
+    },
+    {
+      "id": "block_cloud_providers_abuse",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["13.107.42.0/24", "40.96.0.0/12", "52.96.0.0/12", "20.190.0.0/15"],
+      "action": "drop"
+    },
+    {
+      "id": "block_aws_abuse_ranges",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["54.230.0.0/15", "52.84.0.0/15", "54.182.0.0/16", "54.192.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_google_cloud_abuse",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["35.191.0.0/16", "130.211.0.0/22", "35.235.240.0/20", "34.64.0.0/10"],
+      "action": "drop"
+    },
+
+    {
+      "id": "block_telnet_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [23],
+      "action": "drop"
+    },
+    {
+      "id": "block_ftp_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [21],
+      "action": "drop"
+    },
+    {
+      "id": "block_smtp_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [25],
+      "action": "drop"
+    },
+    {
+      "id": "block_dns_tcp",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [53],
+      "action": "drop"
+    },
+    {
+      "id": "block_pop3_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [110],
+      "action": "drop"
+    },
+    {
+      "id": "block_imap_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [143],
+      "action": "drop"
+    },
+    {
+      "id": "block_snmp_access",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [161, 162],
+      "action": "drop"
+    },
+    {
+      "id": "block_ldap_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [389, 636],
+      "action": "drop"
+    },
+    {
+      "id": "block_smb_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [445, 139],
+      "action": "drop"
+    },
+    {
+      "id": "block_rdp_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [3389],
+      "action": "drop"
+    },
+    {
+      "id": "block_vnc_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [5900, 5901, 5902, 5903],
+      "action": "drop"
+    },
+    {
+      "id": "block_mysql_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [3306],
+      "action": "drop"
+    },
+    {
+      "id": "block_postgres_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [5432],
+      "action": "drop"
+    },
+    {
+      "id": "block_redis_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [6379],
+      "action": "drop"
+    },
+    {
+      "id": "block_mongodb_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [27017],
+      "action": "drop"
+    },
+    {
+      "id": "block_elasticsearch_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [9200, 9300],
+      "action": "drop"
+    },
+    {
+      "id": "block_kubernetes_api",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [6443, 8080, 10250],
+      "action": "drop"
+    },
+    {
+      "id": "block_docker_api",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [2375, 2376, 2377],
+      "action": "drop"
+    },
+    {
+      "id": "block_etcd_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [2379, 2380],
+      "action": "drop"
+    },
+    {
+      "id": "block_consul_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [8500, 8600],
+      "action": "drop"
+    },
+    {
+      "id": "block_cassandra_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [9042, 7000, 7001],
+      "action": "drop"
+    },
+    {
+      "id": "block_memcached_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [11211],
+      "action": "drop"
+    },
+    {
+      "id": "block_influxdb_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [8086],
+      "action": "drop"
+    },
+    {
+      "id": "block_prometheus_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [9090],
+      "action": "drop"
+    },
+    {
+      "id": "block_grafana_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [3000],
+      "action": "drop"
+    },
+    {
+      "id": "block_jenkins_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [8080, 50000],
+      "action": "drop"
+    },
+    {
+      "id": "block_gitlab_ssh",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [2222],
+      "action": "drop"
+    },
+    {
+      "id": "block_high_ports_scan",
+      "layer": 4,
+      "type": "tcp_dst_port_range",
+      "values": ["60000-65535"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ntp_amplification",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [123],
+      "action": "drop"
+    },
+    {
+      "id": "block_ssdp_amplification",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [1900],
+      "action": "drop"
+    },
+    {
+      "id": "block_netbios_access",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [137, 138],
+      "action": "drop"
+    },
+    {
+      "id": "block_dhcp_spoofing",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [67, 68],
+      "action": "drop"
+    },
+    {
+      "id": "block_tftp_access",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [69],
+      "action": "drop"
+    },
+    {
+      "id": "block_kerberos_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [88, 464],
+      "action": "drop"
+    },
+    {
+      "id": "block_ipsec_ports",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [500, 4500],
+      "action": "drop"
+    },
+
+    {
+      "id": "block_sql_injection_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)select.*from.*where", "(?i)insert.*into.*values", "(?i)update.*set.*where"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)delete.*from.*where", "(?i)drop.*table", "(?i)create.*table"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)alter.*table", "(?i)grant.*privileges", "(?i)revoke.*from"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_4",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)exec.*sp_", "(?i)execute.*sp_", "(?i)sp_executesql"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_5",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)information_schema", "(?i)sys\\.tables", "(?i)mysql\\.user"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)<script[^>]*>", "(?i)</script>", "(?i)javascript:"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)onload\\s*=", "(?i)onerror\\s*=", "(?i)onclick\\s*="],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)onmouseover\\s*=", "(?i)onfocus\\s*=", "(?i)onblur\\s*="],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_4",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)<iframe[^>]*>", "(?i)<embed[^>]*>", "(?i)<object[^>]*>"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_5",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)vbscript:", "(?i)data:text/html", "(?i)eval\\s*\\("],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.\\./", "(?i)\\.\\.\\\\", "(?i)/etc/passwd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/etc/shadow", "(?i)/etc/hosts", "(?i)/proc/self/environ"],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\\\windows\\\\system32", "(?i)c:\\\\windows", "(?i)/var/log/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_rfi_attacks",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)http://", "(?i)https://", "(?i)ftp://"],
+      "action": "drop"
+    },
+    {
+      "id": "block_php_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)php://", "(?i)data://", "(?i)expect://"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i);\\s*cat\\s+", "(?i);\\s*ls\\s+", "(?i);\\s*pwd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i);\\s*whoami", "(?i);\\s*id\\s+", "(?i);\\s*uname"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\|\\s*cat\\s+", "(?i)\\|\\s*ls\\s+", "(?i)\\|\\s*nc\\s+"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_4",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$\\(cat\\s+", "(?i)\\$\\(ls\\s+", "(?i)`cat\\s+"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xxe_attacks",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)<!entity", "(?i)<!\\[cdata\\[", "(?i)&xxe;"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["burpsuite", "zap", "w3af", "acunetix"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["nessus", "openvas", "qualys", "rapid7"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_3",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["metasploit", "exploit", "payload", "shellcode"],
+      "action": "drop"
+    },
+    {
+      "id": "block_bot_user_agents_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["bot", "crawler", "spider", "scraper"],
+      "action": "drop"
+    },
+    {
+      "id": "block_bot_user_agents_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["wget",  "python-requests", "libwww-perl"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_headers_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "x-forwarded-for",
+      "values": ["127.0.0.1", "localhost", "::1"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_headers_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "referer",
+      "values": ["javascript:", "data:", "vbscript:"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_methods",
+      "layer": 7,
+      "type": "http_method",
+      "values": ["TRACE", "TRACK", "CONNECT", "OPTIONS"],
+      "action": "drop"
+    },
+    {
+      "id": "block_admin_paths_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/admin", "(?i)/administrator", "(?i)/wp-admin"],
+      "action": "drop"
+    },
+    {
+      "id": "block_admin_paths_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/phpmyadmin", "(?i)/mysql", "(?i)/adminer"],
+      "action": "drop"
+    },
+    {
+      "id": "block_config_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.conf$", "(?i)\\.config$", "(?i)\\.ini$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_backup_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.bak$", "(?i)\\.backup$", "(?i)\\.old$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_log_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.log$", "(?i)/logs/", "(?i)/var/log/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_git_exposure",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.git/", "(?i)/\\.git", "(?i)\\.gitignore"],
+      "action": "drop"
+    },
+    {
+      "id": "block_svn_exposure",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.svn/", "(?i)/\\.svn", "(?i)entries"],
+      "action": "drop"
+    },
+    {
+      "id": "block_env_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.env", "(?i)environment", "(?i)\\.htaccess"],
+      "action": "drop"
+    },
+    {
+      "id": "block_upload_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/upload", "(?i)/uploads/", "(?i)/files/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_shell_uploads",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.php\\?", "(?i)shell\\.php", "(?i)cmd\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_wordpress_exploits_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/wp-content/", "(?i)/wp-includes/", "(?i)wp-config\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_wordpress_exploits_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)wp-login\\.php", "(?i)xmlrpc\\.php", "(?i)/wp-json/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_drupal_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/sites/default/", "(?i)/modules/", "(?i)settings\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_joomla_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/administrator/", "(?i)/components/", "(?i)configuration\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_apache_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/server-status", "(?i)/server-info", "(?i)\\.htpasswd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nginx_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/nginx_status", "(?i)/status", "(?i)stub_status"],
+      "action": "drop"
+    },
+    {
+      "id": "block_tomcat_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/manager/", "(?i)/host-manager/", "(?i)/examples/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_spring_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/actuator/", "(?i)/health", "(?i)/metrics"],
+      "action": "drop"
+    },
+    {
+      "id": "block_laravel_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/telescope/", "(?i)/horizon/", "(?i)\\.env"],
+      "action": "drop"
+    },
+    {
+      "id": "block_django_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/admin/", "(?i)/debug/", "(?i)settings\\.py"],
+      "action": "drop"
+    },
+    {
+      "id": "block_struts_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)Content-Type.*multipart", "(?i)%{", "(?i)#cmd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_deserialization_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)java\\.lang", "(?i)Runtime\\.getRuntime", "(?i)ProcessBuilder"],
+      "action": "drop"
+    },
+    {
+      "id": "block_deserialization_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)ObjectInputStream", "(?i)readObject", "(?i)serialVersionUID"],
+      "action": "drop"
+    },
+    {
+      "id": "block_template_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\{\\{", "(?i)\\}\\}", "(?i)\\$\\{"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nosql_injection_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$where", "(?i)\\$ne", "(?i)\\$gt"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nosql_injection_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$regex", "(?i)\\$exists", "(?i)\\$in"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ldap_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\(\\|", "(?i)\\(\\&", "(?i)\\*\\)"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xpath_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)or\\s+1=1", "(?i)and\\s+1=1", "(?i)'\\s+or\\s+'"],
+      "action": "drop"
+    },
+    {
+      "id": "block_crlf_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%0d%0a", "(?i)\\r\\n", "(?i)%0a"],
+      "action": "drop"
+    },
+    {
+      "id": "block_host_header_injection",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "host",
+      "values": ["attacker.com", "evil.com", "malicious.net"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_encoding_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%u00", "(?i)%c0%af", "(?i)%e0%80%af"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_encoding_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%25", "(?i)%2e%2e", "(?i)%c1%1c"],
+      "action": "drop"
+    },
+    {
+      "id": "block_buffer_overflow_attempts",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["A{100,}", "\\x90{10,}", "\\x41{50,}"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_payloads_1",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)base64_decode", "(?i)eval\\(", "(?i)system\\("],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_payloads_2",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)shell_exec", "(?i)passthru", "(?i)exec\\("],
+      "action": "drop"
+    },
+    {
+      "id": "block_webshell_indicators",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)c99shell", "(?i)r57shell", "(?i)b374k"],
+      "action": "drop"
+    },
+    {
+      "id": "block_reverse_shell_1",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)/bin/sh", "(?i)/bin/bash", "(?i)nc\\s+-e"],
+      "action": "drop"
+    },
+    {
+      "id": "block_reverse_shell_2",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)python.*socket", "(?i)perl.*socket", "(?i)ruby.*socket"],
+      "action": "drop"
+    },
+    {
+      "id": "block_dns_malware_domains",
+      "layer": 7,
+      "type": "dns_query_contains",
+      "values": ["malware.com", "trojan.net", "virus.org", "botnet.info"],
+      "action": "drop"
+    },
+    {
+      "id": "block_tor_domains",
+      "layer": 7,
+      "type": "dns_query_contains",
+      "values": [".onion", "torproject.org", "duckduckgo.com"],
+      "action": "drop"
+    },
+    {
+      "id": "block_cryptocurrency_mining",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)coinhive", "(?i)cryptonight", "(?i)minergate"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_files_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.exe$", "(?i)\\.scr$", "(?i)\\.bat$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_files_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.vbs$", "(?i)\\.ps1$", "(?i)\\.jar$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_encoded_attacks_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%3cscript", "(?i)%3e", "(?i)%22"],
+      "action": "drop"
+    },
+    {
+      "id": "block_encoded_attacks_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%27", "(?i)%3d", "(?i)%20union%20"],
+      "action": "drop"
+    },
+    {
+      "id": "block_protocol_anomalies_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "content-length",
+      "values": ["-1", "999999999", "0x"],
+      "action": "drop"
+    },
+    {
+      "id": "block_protocol_anomalies_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "transfer-encoding",
+      "values": ["chunked", "gzip", "deflate"],
+      "action": "drop"
+    },
+    {
+      "id": "block_slow_http_attacks",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "connection",
+      "values": ["keep-alive", "close"],
+      "action": "drop"
+    },
+    {
+      "id": "block_rate_limit_bypass",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "x-real-ip",
+      "values": ["127.0.0.1", "localhost", "0.0.0.0"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)onload\\s*=", "(?i)onerror\\s*=", "(?i)onclick\\s*="],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)onmouseover\\s*=", "(?i)onfocus\\s*=", "(?i)onblur\\s*="],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_4",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)<iframe[^>]*>", "(?i)<embed[^>]*>", "(?i)<object[^>]*>"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_5",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)vbscript:", "(?i)data:text/html", "(?i)eval\\s*\\("],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.\\./", "(?i)\\.\\.\\\\", "(?i)/etc/passwd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/etc/shadow", "(?i)/etc/hosts", "(?i)/proc/self/environ"],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\\\windows\\\\system32", "(?i)c:\\\\windows", "(?i)/var/log/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_rfi_attacks",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)http://", "(?i)https://", "(?i)ftp://"],
+      "action": "drop"
+    },
+    {
+      "id": "block_php_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)php://", "(?i)data://", "(?i)expect://"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i);\\s*cat\\s+", "(?i);\\s*ls\\s+", "(?i);\\s*pwd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i);\\s*whoami", "(?i);\\s*id\\s+", "(?i);\\s*uname"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\|\\s*cat\\s+", "(?i)\\|\\s*ls\\s+", "(?i)\\|\\s*nc\\s+"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_4",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$\\(cat\\s+", "(?i)\\$\\(ls\\s+", "(?i)`cat\\s+"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xxe_attacks",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)<!entity", "(?i)<!\\[cdata\\[", "(?i)&xxe;"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["burpsuite", "zap", "w3af", "acunetix"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["nessus", "openvas", "qualys", "rapid7"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_3",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["metasploit", "exploit", "payload", "shellcode"],
+      "action": "drop"
+    },
+    {
+      "id": "block_bot_user_agents_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["bot", "crawler", "spider", "scraper"],
+      "action": "drop"
+    },
+    {
+      "id": "block_bot_user_agents_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["wget",  "python-requests", "libwww-perl"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_headers_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "x-forwarded-for",
+      "values": ["127.0.0.1", "localhost", "::1"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_headers_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "referer",
+      "values": ["javascript:", "data:", "vbscript:"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_methods",
+      "layer": 7,
+      "type": "http_method",
+      "values": ["TRACE", "TRACK", "CONNECT", "OPTIONS"],
+      "action": "drop"
+    },
+    {
+      "id": "block_admin_paths_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/admin", "(?i)/administrator", "(?i)/wp-admin"],
+      "action": "drop"
+    },
+    {
+      "id": "block_admin_paths_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/phpmyadmin", "(?i)/mysql", "(?i)/adminer"],
+      "action": "drop"
+    },
+    {
+      "id": "block_config_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.conf$", "(?i)\\.config$", "(?i)\\.ini$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_backup_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.bak$", "(?i)\\.backup$", "(?i)\\.old$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_log_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.log$", "(?i)/logs/", "(?i)/var/log/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_git_exposure",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.git/", "(?i)/\\.git", "(?i)\\.gitignore"],
+      "action": "drop"
+    },
+    {
+      "id": "block_svn_exposure",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.svn/", "(?i)/\\.svn", "(?i)entries"],
+      "action": "drop"
+    },
+    {
+      "id": "block_env_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.env", "(?i)environment", "(?i)\\.htaccess"],
+      "action": "drop"
+    },
+    {
+      "id": "block_upload_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/upload", "(?i)/uploads/", "(?i)/files/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_shell_uploads",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.php\\?", "(?i)shell\\.php", "(?i)cmd\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_wordpress_exploits_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/wp-content/", "(?i)/wp-includes/", "(?i)wp-config\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_wordpress_exploits_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)wp-login\\.php", "(?i)xmlrpc\\.php", "(?i)/wp-json/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_drupal_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/sites/default/", "(?i)/modules/", "(?i)settings\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_joomla_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/administrator/", "(?i)/components/", "(?i)configuration\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_apache_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/server-status", "(?i)/server-info", "(?i)\\.htpasswd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nginx_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/nginx_status", "(?i)/status", "(?i)stub_status"],
+      "action": "drop"
+    },
+    {
+      "id": "block_tomcat_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/manager/", "(?i)/host-manager/", "(?i)/examples/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_spring_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/actuator/", "(?i)/health", "(?i)/metrics"],
+      "action": "drop"
+    },
+    {
+      "id": "block_laravel_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/telescope/", "(?i)/horizon/", "(?i)\\.env"],
+      "action": "drop"
+    },
+    {
+      "id": "block_django_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/admin/", "(?i)/debug/", "(?i)settings\\.py"],
+      "action": "drop"
+    },
+    {
+      "id": "block_struts_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)Content-Type.*multipart", "(?i)%{", "(?i)#cmd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_deserialization_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)java\\.lang", "(?i)Runtime\\.getRuntime", "(?i)ProcessBuilder"],
+      "action": "drop"
+    },
+    {
+      "id": "block_deserialization_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)ObjectInputStream", "(?i)readObject", "(?i)serialVersionUID"],
+      "action": "drop"
+    },
+    {
+      "id": "block_template_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\{\\{", "(?i)\\}\\}", "(?i)\\$\\{"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nosql_injection_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$where", "(?i)\\$ne", "(?i)\\$gt"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nosql_injection_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$regex", "(?i)\\$exists", "(?i)\\$in"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ldap_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\(\\|", "(?i)\\(\\&", "(?i)\\*\\)"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xpath_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)or\\s+1=1", "(?i)and\\s+1=1", "(?i)'\\s+or\\s+'"],
+      "action": "drop"
+    },
+    {
+      "id": "block_crlf_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%0d%0a", "(?i)\\r\\n", "(?i)%0a"],
+      "action": "drop"
+    },
+    {
+      "id": "block_host_header_injection",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "host",
+      "values": ["attacker.com", "evil.com", "malicious.net"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_encoding_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%u00", "(?i)%c0%af", "(?i)%e0%80%af"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_encoding_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%25", "(?i)%2e%2e", "(?i)%c1%1c"],
+      "action": "drop"
+    },
+    {
+      "id": "block_buffer_overflow_attempts",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["A{100,}", "\\x90{10,}", "\\x41{50,}"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_payloads_1",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)base64_decode", "(?i)eval\\(", "(?i)system\\("],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_payloads_2",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)shell_exec", "(?i)passthru", "(?i)exec\\("],
+      "action": "drop"
+    },
+    {
+      "id": "block_webshell_indicators",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)c99shell", "(?i)r57shell", "(?i)b374k"],
+      "action": "drop"
+    },
+    {
+      "id": "block_reverse_shell_1",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)/bin/sh", "(?i)/bin/bash", "(?i)nc\\s+-e"],
+      "action": "drop"
+    },
+    {
+      "id": "block_reverse_shell_2",
+      "layer": 7,
+      "type": "http_payload_regex",
+      "values": ["(?i)python.*socket", "(?i)perl.*socket", "(?i)ruby.*socket"],
+      "action": "drop"
+    },
+    {
+      "id": "block_dns_malware_domains",
+      "layer": 7,
+      "type": "dns_query_contains",
+      "values": ["malware.com", "trojan.net", "virus.org", "botnet.info"],
+      "action": "drop"
+    },
+    {
+      "id": "block_tor_domains",
+      "layer": 7,
+      "type": "dns_query_contains",
+      "values": [".onion", "torproject.org", "duckduckgo.com"],
+      "action": "drop"
+    },
+    {
+      "id": "block_cryptocurrency_mining",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)coinhive", "(?i)cryptonight", "(?i)minergate"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_files_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.exe$", "(?i)\\.scr$", "(?i)\\.bat$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_files_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.vbs$", "(?i)\\.ps1$", "(?i)\\.jar$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_encoded_attacks_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%3cscript", "(?i)%3e", "(?i)%22"],
+      "action": "drop"
+    },
+    {
+      "id": "block_encoded_attacks_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%27", "(?i)%3d", "(?i)%20union%20"],
+      "action": "drop"
+    },
+    {
+      "id": "block_protocol_anomalies_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "content-length",
+      "values": ["-1", "999999999", "0x"],
+      "action": "drop"
+    },
+    {
+      "id": "block_protocol_anomalies_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "transfer-encoding",
+      "values": ["chunked", "gzip", "deflate"],
+      "action": "drop"
+    },
+    {
+      "id": "block_slow_http_attacks",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "connection",
+      "values": ["keep-alive", "close"],
+      "action": "drop"
+    },
+    {
+      "id": "block_rate_limit_bypass",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "x-real-ip",
+      "values": ["127.0.0.1", "localhost", "0.0.0.0"],
+      "action": "drop"
+    }
+    ,
+    {
+      "id": "block_china_russia",
+      "layer": 3, 
+      "type": "ip_src_country",
+      "values": ["CN", "RU"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ssh_brute",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [22],
+      "action": "drop"
+    },
+    {
+      "id": "block_sqli_attempts",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)(union|select|insert|drop).*from", "(?i)or.*1.*=.*1"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_ua",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["sqlmap", "nmap", "masscan", "nikto"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_payload",
+      "layer": 7,
+      "type": "http_uri_regex", 
+      "values": ["(?i)<script.*>", "(?i)javascript:", "(?i)onload.*="],
+      "action": "drop"
+    },
+
+    {
+      "id": "block_iran_north_korea",
+      "layer": 3,
+      "type": "ip_src_country",
+      "values": ["IR", "KP"],
+      "action": "drop"
+    },
+    {
+      "id": "block_botnet_ips_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["45.142.122.0/24", "91.240.118.0/24", "194.147.78.0/24", "23.94.218.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_botnet_ips_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["103.253.147.0/24", "185.220.101.0/24", "188.114.97.0/24", "95.142.46.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_vpn_ranges_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["162.255.202.0/24", "172.64.80.0/24", "104.27.0.0/20"],
+      "action": "drop"
+    },
+    {
+      "id": "block_vpn_ranges_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["198.41.128.0/17", "173.245.48.0/20", "103.21.244.0/22"],
+      "action": "drop"
+    },
+    {
+      "id": "block_datacenter_ranges",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["74.125.0.0/16", "173.194.0.0/16", "72.14.192.0/18", "66.249.64.0/19"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_ranges_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["185.165.168.0/22", "82.221.128.0/24", "192.241.0.0/16", "159.203.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_ranges_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["167.99.0.0/16", "178.62.0.0/16", "46.101.0.0/16", "174.138.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_proxy_ranges",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["185.220.102.0/24", "185.220.103.0/24", "199.87.155.0/24", "192.42.117.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_geolocations",
+      "layer": 3,
+      "type": "ip_src_country",
+      "values": ["SY", "AF", "IQ", "PK", "BD"],
+      "action": "drop"
+    },
+    {
+      "id": "block_cloud_providers_abuse",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["13.107.42.0/24", "40.96.0.0/12", "52.96.0.0/12", "20.190.0.0/15"],
+      "action": "drop"
+    },
+    {
+      "id": "block_aws_abuse_ranges",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["54.230.0.0/15", "52.84.0.0/15", "54.182.0.0/16", "54.192.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_google_cloud_abuse",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["35.191.0.0/16", "130.211.0.0/22", "35.235.240.0/20", "34.64.0.0/10"],
+      "action": "drop"
+    },
+
+    {
+      "id": "block_telnet_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [23],
+      "action": "drop"
+    },
+    {
+      "id": "block_ftp_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [21],
+      "action": "drop"
+    },
+    {
+      "id": "block_smtp_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [25],
+      "action": "drop"
+    },
+    {
+      "id": "block_dns_tcp",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [53],
+      "action": "drop"
+    },
+    {
+      "id": "block_pop3_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [110],
+      "action": "drop"
+    },
+    {
+      "id": "block_imap_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [143],
+      "action": "drop"
+    },
+    {
+      "id": "block_snmp_access",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [161, 162],
+      "action": "drop"
+    },
+    {
+      "id": "block_ldap_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [389, 636],
+      "action": "drop"
+    },
+    {
+      "id": "block_smb_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [445, 139],
+      "action": "drop"
+    },
+    {
+      "id": "block_rdp_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [3389],
+      "action": "drop"
+    },
+    {
+      "id": "block_vnc_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [5900, 5901, 5902, 5903],
+      "action": "drop"
+    },
+    {
+      "id": "block_mysql_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [3306],
+      "action": "drop"
+    },
+    {
+      "id": "block_postgres_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [5432],
+      "action": "drop"
+    },
+    {
+      "id": "block_redis_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [6379],
+      "action": "drop"
+    },
+    {
+      "id": "block_mongodb_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [27017],
+      "action": "drop"
+    },
+    {
+      "id": "block_elasticsearch_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [9200, 9300],
+      "action": "drop"
+    },
+    {
+      "id": "block_kubernetes_api",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [6443, 8080, 10250],
+      "action": "drop"
+    },
+    {
+      "id": "block_docker_api",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [2375, 2376, 2377],
+      "action": "drop"
+    },
+    {
+      "id": "block_etcd_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [2379, 2380],
+      "action": "drop"
+    },
+    {
+      "id": "block_consul_access",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [8500, 8600],
+      "action": "drop"
+    },
+    {
+      "id": "block_cassandra_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [9042, 7000, 7001],
+      "action": "drop"
+    },
+    {
+      "id": "block_memcached_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [11211],
+      "action": "drop"
+    },
+    {
+      "id": "block_influxdb_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [8086],
+      "action": "drop"
+    },
+    {
+      "id": "block_prometheus_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [9090],
+      "action": "drop"
+    },
+    {
+      "id": "block_grafana_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [3000],
+      "action": "drop"
+    },
+    {
+      "id": "block_jenkins_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [8080, 50000],
+      "action": "drop"
+    },
+    {
+      "id": "block_gitlab_ssh",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [2222],
+      "action": "drop"
+    },
+    {
+      "id": "block_high_ports_scan",
+      "layer": 4,
+      "type": "tcp_dst_port_range",
+      "values": ["60000-65535"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ntp_amplification",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [123],
+      "action": "drop"
+    },
+    {
+      "id": "block_ssdp_amplification",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [1900],
+      "action": "drop"
+    },
+    {
+      "id": "block_netbios_access",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [137, 138],
+      "action": "drop"
+    },
+    {
+      "id": "block_dhcp_spoofing",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [67, 68],
+      "action": "drop"
+    },
+    {
+      "id": "block_tftp_access",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [69],
+      "action": "drop"
+    },
+    {
+      "id": "block_kerberos_direct",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [88, 464],
+      "action": "drop"
+    },
+    {
+      "id": "block_ipsec_ports",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": [500, 4500],
+      "action": "drop"
+    },
+
+    {
+      "id": "block_sql_injection_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)select.*from.*where", "(?i)insert.*into.*values", "(?i)update.*set.*where"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)delete.*from.*where", "(?i)drop.*table", "(?i)create.*table"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)alter.*table", "(?i)grant.*privileges", "(?i)revoke.*from"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_4",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)exec.*sp_", "(?i)execute.*sp_", "(?i)sp_executesql"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sql_injection_5",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)information_schema", "(?i)sys\\.tables", "(?i)mysql\\.user"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)<script[^>]*>", "(?i)</script>", "(?i)javascript:"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)onload\\s*=", "(?i)onerror\\s*=", "(?i)onclick\\s*="],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)onmouseover\\s*=", "(?i)onfocus\\s*=", "(?i)onblur\\s*="],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_4",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)<iframe[^>]*>", "(?i)<embed[^>]*>", "(?i)<object[^>]*>"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_attacks_5",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)vbscript:", "(?i)data:text/html", "(?i)eval\\s*\\("],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.\\./", "(?i)\\.\\.\\\\", "(?i)/etc/passwd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/etc/shadow", "(?i)/etc/hosts", "(?i)/proc/self/environ"],
+      "action": "drop"
+    },
+    {
+      "id": "block_lfi_attacks_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\\\windows\\\\system32", "(?i)c:\\\\windows", "(?i)/var/log/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_rfi_attacks",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)http://", "(?i)https://", "(?i)ftp://"],
+      "action": "drop"
+    },
+    {
+      "id": "block_php_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)php://", "(?i)data://", "(?i)expect://"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i);\\s*cat\\s+", "(?i);\\s*ls\\s+", "(?i);\\s*pwd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i);\\s*whoami", "(?i);\\s*id\\s+", "(?i);\\s*uname"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_3",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\|\\s*cat\\s+", "(?i)\\|\\s*ls\\s+", "(?i)\\|\\s*nc\\s+"],
+      "action": "drop"
+    },
+    {
+      "id": "block_command_injection_4",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$\\(cat\\s+", "(?i)\\$\\(ls\\s+", "(?i)`cat\\s+"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xxe_attacks",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)<!entity", "(?i)<!\\[cdata\\[", "(?i)&xxe;"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["burpsuite", "zap", "w3af", "acunetix"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["nessus", "openvas", "qualys", "rapid7"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_user_agents_3",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["metasploit", "exploit", "payload", "shellcode"],
+      "action": "drop"
+    },
+    {
+      "id": "block_bot_user_agents_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["bot", "crawler", "spider", "scraper"],
+      "action": "drop"
+    },
+    {
+      "id": "block_bot_user_agents_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["wget",  "python-requests", "libwww-perl"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_headers_1",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "x-forwarded-for",
+      "values": ["127.0.0.1", "localhost", "::1"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_headers_2",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "referer",
+      "values": ["javascript:", "data:", "vbscript:"],
+      "action": "drop"
+    },
+    {
+      "id": "block_suspicious_methods",
+      "layer": 7,
+      "type": "http_method",
+      "values": ["TRACE", "TRACK", "CONNECT", "OPTIONS"],
+      "action": "drop"
+    },
+    {
+      "id": "block_admin_paths_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/admin", "(?i)/administrator", "(?i)/wp-admin"],
+      "action": "drop"
+    },
+    {
+      "id": "block_admin_paths_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/phpmyadmin", "(?i)/mysql", "(?i)/adminer"],
+      "action": "drop"
+    },
+    {
+      "id": "block_config_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.conf$", "(?i)\\.config$", "(?i)\\.ini$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_backup_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.bak$", "(?i)\\.backup$", "(?i)\\.old$"],
+      "action": "drop"
+    },
+    {
+      "id": "block_log_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.log$", "(?i)/logs/", "(?i)/var/log/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_git_exposure",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.git/", "(?i)/\\.git", "(?i)\\.gitignore"],
+      "action": "drop"
+    },
+    {
+      "id": "block_svn_exposure",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.svn/", "(?i)/\\.svn", "(?i)entries"],
+      "action": "drop"
+    },
+    {
+      "id": "block_env_files",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.env", "(?i)environment", "(?i)\\.htaccess"],
+      "action": "drop"
+    },
+    {
+      "id": "block_upload_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/upload", "(?i)/uploads/", "(?i)/files/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_shell_uploads",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\.php\\?", "(?i)shell\\.php", "(?i)cmd\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_wordpress_exploits_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/wp-content/", "(?i)/wp-includes/", "(?i)wp-config\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_wordpress_exploits_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)wp-login\\.php", "(?i)xmlrpc\\.php", "(?i)/wp-json/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_drupal_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/sites/default/", "(?i)/modules/", "(?i)settings\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_joomla_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/administrator/", "(?i)/components/", "(?i)configuration\\.php"],
+      "action": "drop"
+    },
+    {
+      "id": "block_apache_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/server-status", "(?i)/server-info", "(?i)\\.htpasswd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nginx_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/nginx_status", "(?i)/status", "(?i)stub_status"],
+      "action": "drop"
+    },
+    {
+      "id": "block_tomcat_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/manager/", "(?i)/host-manager/", "(?i)/examples/"],
+      "action": "drop"
+    },
+    {
+      "id": "block_spring_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/actuator/", "(?i)/health", "(?i)/metrics"],
+      "action": "drop"
+    },
+    {
+      "id": "block_laravel_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/telescope/", "(?i)/horizon/", "(?i)\\.env"],
+      "action": "drop"
+    },
+    {
+      "id": "block_django_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)/admin/", "(?i)/debug/", "(?i)settings\\.py"],
+      "action": "drop"
+    },
+    {
+      "id": "block_struts_exploits",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)Content-Type.*multipart", "(?i)%{", "(?i)#cmd"],
+      "action": "drop"
+    },
+    {
+      "id": "block_deserialization_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)java\\.lang", "(?i)Runtime\\.getRuntime", "(?i)ProcessBuilder"],
+      "action": "drop"
+    },
+    {
+      "id": "block_deserialization_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)ObjectInputStream", "(?i)readObject", "(?i)serialVersionUID"],
+      "action": "drop"
+    },
+    {
+      "id": "block_template_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\{\\{", "(?i)\\}\\}", "(?i)\\$\\{"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nosql_injection_1",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$where", "(?i)\\$ne", "(?i)\\$gt"],
+      "action": "drop"
+    },
+    {
+      "id": "block_nosql_injection_2",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\$regex", "(?i)\\$exists", "(?i)\\$in"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ldap_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)\\(\\|", "(?i)\\(\\&", "(?i)\\*\\)"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xpath_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)or\\s+1=1", "(?i)and\\s+1=1", "(?i)'\\s+or\\s+'"],
+      "action": "drop"
+    },
+    {
+      "id": "block_crlf_injection",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)%0d%0a", "(?i)\\r\\n", "(?i)%0a"],
+      "action": "drop"
+    },
+    {
+      "id": "block_host_header_injection",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "host",
+      "values": ["attacker.com", "evil.com", "malicious.net"],
+      "action": "drop"
+    }
+  ]
+}

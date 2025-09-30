@@ -1,14 +1,14 @@
 #!/bin/bash
 # Tiger-Fox C++ Build Script
-# High-performance network filtering system
+# High-performance hybrid network filtering system
 
 set -e
 
 PROJECT_NAME="tiger-fox"
-BUILD_TYPE=${1:-Release}  # Release or Debug
-JOBS=${2:-$(nproc)}       # Number of parallel jobs
+BUILD_TYPE=${1:-Release}
+JOBS=${2:-$(nproc)}
 
-echo "🔨 Building Tiger-Fox C++ Network Filtering System"
+echo "🔨 Building Tiger-Fox C++ Hybrid Filtering System"
 echo "========================================================"
 echo "Build type: $BUILD_TYPE"
 echo "Parallel jobs: $JOBS"
@@ -22,8 +22,7 @@ cd build
 echo "🔧 Configuring with CMake..."
 cmake .. \
     -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
-    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-    -DENABLE_OPTIMIZATIONS=ON
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
 # Build
 echo "🔨 Building project..."
@@ -38,29 +37,15 @@ echo "📋 Build Information:"
 echo "Executable: build/$PROJECT_NAME"
 echo "Size: $(ls -lh $PROJECT_NAME | awk '{print $5}')"
 
-# Display dependencies
-echo ""
-echo "🔗 Dependencies check:"
-ldd $PROJECT_NAME | grep -E "(netfilter|pcre|json)" || true
-
 echo ""
 echo "🚀 Ready to run!"
 echo ""
-echo "Usage examples:"
-echo "  sudo ./build/$PROJECT_NAME --sequential"
-echo "  sudo ./build/$PROJECT_NAME --hybrid --workers 8"
-echo "  sudo ./build/$PROJECT_NAME --sequential-hyb"
+echo "Usage:"
+echo "  sudo ./build/$PROJECT_NAME --workers 8"
 echo "  sudo ./build/$PROJECT_NAME --help"
 echo ""
 
-# Check if running as root
 if [ "$EUID" -ne 0 ]; then
     echo "⚠️  Note: $PROJECT_NAME requires root privileges for NFQUEUE access"
     echo "   Run with: sudo ./build/$PROJECT_NAME [options]"
 fi
-
-echo "🌐 CloudLab Architecture:"
-echo "  injector (10.10.1.10) → filter (this machine) → server (10.10.2.20)"
-echo ""
-echo "📊 Test with wrk from injector:"
-echo "  wrk -t 12 -c 400 -d 30s --latency http://10.10.2.20/"
