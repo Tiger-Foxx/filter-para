@@ -303,13 +303,10 @@ void TigerSystem::PrintStats() const {
     auto stats = worker_pool_->GetStats();
     
     std::cout << "\n📊 ===== Real-Time Statistics =====" << std::endl;
-    std::cout << "   Total packets dispatched: " << stats.total_dispatched << std::endl;
-    std::cout << "   Total packets processed: " << stats.total_processed << std::endl;
-    std::cout << "   Queue full drops: " << stats.queue_full_drops << std::endl;
-    std::cout << "   Average processing time: " << std::fixed << std::setprecision(3) 
-              << stats.overall_avg_time_ms << "ms" << std::endl;
-    std::cout << "   Load balance variance: " << std::fixed << std::setprecision(2) 
-              << stats.load_balance_variance << std::endl;
+    std::cout << "   Total packets: " << stats.total_packets << std::endl;
+    std::cout << "   Dropped: " << stats.total_dropped << std::endl;
+    std::cout << "   Accepted: " << stats.total_accepted << std::endl;
+    std::cout << "   Avg processing time: " << stats.avg_processing_time_ms << "ms" << std::endl;
     std::cout << "===================================\n" << std::endl;
 }
 

@@ -170,7 +170,7 @@ bool RuleEngine::EvaluateRule(const Rule& rule, const PacketData& packet) const 
     }
 }
 
-bool RuleEngine::EvaluateL3Rule(const Rule& rule, const PacketData& packet) const {
+bool RuleEngine::EvaluateL3Rule(const Rule& rule, const PacketData& packet) {
     switch (rule.type) {
         case RuleType::IP_SRC_IN: {
             uint32_t src_ip = IPStringToUint32(packet.src_ip);

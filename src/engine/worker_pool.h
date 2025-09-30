@@ -2,9 +2,6 @@
 #define WORKER_POOL_H
 
 #include "rule_engine.h"
-#include "../handlers/tcp_reassembler.h"
-
-#include <vector>
 #include <thread>
 #include <queue>
 #include <mutex>
@@ -12,14 +9,31 @@
 #include <atomic>
 #include <memory>
 #include <functional>
+#include <vector>
+
+// Forward declarations
+class TCPReassembler;
+struct PacketData;
 
 // ============================================================
-// WORKER POOL - HASH-BASED PACKET DISPATCH
+// WORKER POOL - HASH-BASED DISPATCH
 // ============================================================
+
 class WorkerPool {
 public:
+    // Statistics structure
+    struct Stats {
+        uint64_t total_packets;
+        uint64_t total_dropped;
+        uint64_t total_accepted;
+        double avg_processing_time_ms;
+        std::vector<uint64_t> worker_packet_counts;
+        std::vector<double> worker_avg_times;
+    };
+    
     explicit WorkerPool(const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules,
                        size_t num_workers = 0);
+    
     ~WorkerPool();
     
     // Lifecycle
@@ -27,25 +41,14 @@ public:
     void Shutdown();
     
     // Packet processing
-    void EnqueuePacket(const PacketData& packet, std::function<void(FilterResult)> callback);
+    bool DispatchPacket(const PacketData& packet, std::function<void(FilterResult)> callback);
     
     // Statistics
-    struct Stats {
-        size_t num_workers;
-        std::vector<uint64_t> packets_per_worker;
-        std::vector<uint64_t> drops_per_worker;
-        std::vector<uint64_t> accepts_per_worker;
-        std::vector<double> avg_time_per_worker;
-        uint64_t total_packets;
-        uint64_t total_drops;
-        uint64_t queue_overflows;
-        double load_variance;
-    };
     Stats GetStats() const;
     void PrintStats() const;
 
 private:
-    // Worker context
+    // Worker context (per-worker state)
     struct WorkerContext {
         std::thread thread;
         std::queue<std::pair<PacketData, std::function<void(FilterResult)>>> queue;
@@ -56,24 +59,24 @@ private:
         std::atomic<uint64_t> packets_processed{0};
         std::atomic<uint64_t> packets_dropped{0};
         std::atomic<uint64_t> packets_accepted{0};
-        std::atomic<double> total_processing_time_ms{0.0};
+        mutable std::atomic<double> total_processing_time_ms{0.0};
         
         WorkerContext() 
             : queue_mutex(std::make_unique<std::mutex>()),
               queue_cv(std::make_unique<std::condition_variable>()),
               reassembler(std::make_unique<TCPReassembler>()) {}
         
-        // ✅ Suppression des constructeurs de copie
+        // Non-copyable
         WorkerContext(const WorkerContext&) = delete;
         WorkerContext& operator=(const WorkerContext&) = delete;
         
-        // ✅ Constructeur de déplacement
+        // Moveable
         WorkerContext(WorkerContext&& other) noexcept
             : thread(std::move(other.thread)),
               queue(std::move(other.queue)),
               queue_mutex(std::move(other.queue_mutex)),
               queue_cv(std::move(other.queue_cv)),
-              reassembler(std::make_unique<TCPReassembler>())
+              reassembler(std::move(other.reassembler))
         {
             packets_processed.store(other.packets_processed.load());
             packets_dropped.store(other.packets_dropped.load());
@@ -83,21 +86,21 @@ private:
     };
     
     std::vector<WorkerContext> workers_;
-    std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>> rules_by_layer_;
-    
-    size_t num_workers_;
     std::atomic<bool> running_{false};
-    std::atomic<uint64_t> queue_overflows_{0};
+    size_t num_workers_;
     
-    static constexpr size_t MAX_QUEUE_SIZE = 10000;
+    // Rules (reference from constructor)
+    const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules_by_layer_;
     
     // Worker management
     void WorkerLoop(size_t worker_id);
-    size_t HashDispatch(const PacketData& packet) const;
+    size_t GetOptimalWorkerCount() const;
+    size_t DispatchToWorker(const PacketData& packet) const;
     void SetWorkerAffinity(size_t worker_id);
     
-    // Statistics
-    double CalculateLoadVariance() const;
+    // Helpers
+    static constexpr size_t MAX_QUEUE_SIZE = 10000;
+    uint32_t HashPacket(const PacketData& packet) const;
 };
 
 #endif // WORKER_POOL_H

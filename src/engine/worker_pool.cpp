@@ -176,7 +176,12 @@ void WorkerPool::WorkerLoop(size_t worker_id) {
             }
             
             double elapsed_ms = timer.ElapsedMillis();
-            worker.total_processing_time_ms.fetch_add(elapsed_ms, std::memory_order_relaxed);
+            double current = worker.total_processing_time_ms.load(std::memory_order_relaxed);
+            double new_value = current + elapsed_ms;
+            while (!worker.total_processing_time_ms.compare_exchange_weak(
+                current, new_value, std::memory_order_relaxed)) {
+                new_value = current + elapsed_ms;
+            }
             
             // Callback
             if (work_item.second) {
