@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstdint>
 #include <atomic>
+#include <thread>
 #ifdef _WIN32
 #include <process.h>
 typedef int pid_t;

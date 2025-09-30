@@ -93,6 +93,22 @@ private:
             : queue_mutex(std::make_unique<std::mutex>()),
               queue_cv(std::make_unique<std::condition_variable>()),
               reassembler(std::make_unique<TCPReassembler>()) {}
+
+        WorkerContext(const WorkerContext&) = delete;
+        WorkerContext& operator=(const WorkerContext&) = delete;
+
+        WorkerContext(WorkerContext&& other) noexcept
+            : thread(std::move(other.thread)),
+              queue(std::move(other.queue)),
+              queue_mutex(std::move(other.queue_mutex)),
+              queue_cv(std::move(other.queue_cv)),
+              reassembler(std::make_unique<TCPReassembler>()) 
+        {
+            packets_processed.store(other.packets_processed.load());
+            packets_dropped.store(other.packets_dropped.load());
+            packets_accepted.store(other.packets_accepted.load());
+            total_processing_time_ms.store(other.total_processing_time_ms.load());
+        }
     };
     
     std::vector<WorkerContext> workers_;

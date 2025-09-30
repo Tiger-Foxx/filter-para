@@ -5,19 +5,7 @@
 #include <vector>
 #include <memory>
 #include <unordered_map>
-
-// Forward declarations
-enum class RuleLayer;
-enum class RuleType;
-enum class RuleAction;
-struct Rule;
-
-// nlohmann-json forward declaration
-namespace nlohmann {
-    template<typename T = void, typename SFINAE = void>
-    class basic_json;
-    using json = basic_json<>;
-}
+#include <nlohmann/json.hpp>
 
 // ============================================================
 // RULE LOADER - JSON PARSING

@@ -6,6 +6,7 @@ cmake-build-*/
 *.o
 *.so
 *.a
+errors.txt
 tiger-fox
 
 # CMake

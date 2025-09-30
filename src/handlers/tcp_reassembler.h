@@ -8,6 +8,7 @@
 #include <chrono>
 #include <mutex>
 #include <cstdint>
+#include <atomic>
 
 // Forward declaration
 struct PacketData;

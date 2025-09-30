@@ -16,6 +16,53 @@
 #endif
 
 // ============================================================
+// CONCRETE RULE ENGINE FOR HYBRID MODE
+// ============================================================
+class HybridRuleEngine : public RuleEngine {
+public:
+    using RuleEngine::RuleEngine;
+
+    bool Initialize() override { return true; }
+    void Shutdown() override {}
+
+    FilterResult FilterPacket(const PacketData& packet) override {
+        HighResTimer timer;
+
+        // L3 (Network layer)
+        if (rules_by_layer_.count(RuleLayer::L3)) {
+            for (const auto& rule : rules_by_layer_.at(RuleLayer::L3)) {
+                if (EvaluateL3Rule(*rule, packet)) {
+                    l3_drops_.fetch_add(1, std::memory_order_relaxed);
+                    return FilterResult(RuleAction::DROP, rule->id, timer.ElapsedMillis(), RuleLayer::L3);
+                }
+            }
+        }
+
+        // L4 (Transport layer)
+        if (rules_by_layer_.count(RuleLayer::L4)) {
+            for (const auto& rule : rules_by_layer_.at(RuleLayer::L4)) {
+                if (EvaluateL4Rule(*rule, packet)) {
+                    l4_drops_.fetch_add(1, std::memory_order_relaxed);
+                    return FilterResult(RuleAction::DROP, rule->id, timer.ElapsedMillis(), RuleLayer::L4);
+                }
+            }
+        }
+
+        // L7 (Application layer)
+        if (rules_by_layer_.count(RuleLayer::L7)) {
+            for (const auto& rule : rules_by_layer_.at(RuleLayer::L7)) {
+                if (EvaluateL7Rule(*rule, packet)) {
+                    l7_drops_.fetch_add(1, std::memory_order_relaxed);
+                    return FilterResult(RuleAction::DROP, rule->id, timer.ElapsedMillis(), RuleLayer::L7);
+                }
+            }
+        }
+
+        return FilterResult(RuleAction::ACCEPT, "default", timer.ElapsedMillis(), RuleLayer::L3);
+    }
+};
+
+// ============================================================
 // CONSTRUCTOR / DESTRUCTOR
 // ============================================================
 WorkerPool::WorkerPool(const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules,
@@ -153,7 +200,7 @@ bool WorkerPool::DispatchPacket(const WorkItem& work_item) {
 // ============================================================
 void WorkerPool::WorkerLoop(size_t worker_id) {
     auto& worker = workers_[worker_id];
-    RuleEngine rule_engine(rules_by_layer_);
+    HybridRuleEngine rule_engine(rules_by_layer_);
     
     // Initialize rule engine
     if (!rule_engine.Initialize()) {

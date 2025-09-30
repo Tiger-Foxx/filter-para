@@ -170,6 +170,10 @@ public:
     size_t GetTotalRules() const;
     size_t GetRuleCount(RuleLayer layer) const;
 
+    // IP utilities
+    static bool IsIPInRange(const std::string& ip, const Rule::IPRange& range);
+    static uint32_t IPStringToUint32(const std::string& ip);
+
 protected:
     // Rule storage (organized by layer for efficiency)
     std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>> rules_by_layer_;
