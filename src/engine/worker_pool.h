@@ -10,80 +10,49 @@
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
-#include <functional>
 #include <memory>
-#include <unordered_map>
+#include <functional>
 
 // ============================================================
-// WORK ITEM FOR DISPATCH
-// ============================================================
-struct WorkItem {
-    unsigned char* packet_data;  // Raw packet buffer
-    int packet_len;
-    PacketData parsed_packet;
-    uint32_t nfqueue_id;         // For verdict
-    uint64_t timestamp_ns;
-    
-    // Callback for verdict
-    std::function<void(uint32_t verdict)> verdict_callback;
-    
-    WorkItem() : packet_data(nullptr), packet_len(0), nfqueue_id(0), timestamp_ns(0) {}
-    
-    ~WorkItem() {
-        // Note: packet_data ownership managed externally (stack-allocated in NFQUEUE callback)
-    }
-};
-
-// ============================================================
-// WORKER POOL - HYBRID MULTI-WORKER ARCHITECTURE
+// WORKER POOL - HASH-BASED PACKET DISPATCH
 // ============================================================
 class WorkerPool {
 public:
     explicit WorkerPool(const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules,
                        size_t num_workers = 0);
-    
     ~WorkerPool();
     
     // Lifecycle
     bool Initialize();
     void Shutdown();
     
-    // Main dispatch function (called by PacketHandler)
-    bool DispatchPacket(const WorkItem& work_item);
+    // Packet processing
+    void EnqueuePacket(const PacketData& packet, std::function<void(FilterResult)> callback);
     
     // Statistics
     struct Stats {
         size_t num_workers;
-        uint64_t total_dispatched;
-        uint64_t total_processed;
-        uint64_t queue_full_drops;
-        std::vector<uint64_t> worker_packet_counts;
-        std::vector<double> worker_avg_times_ms;
-        double overall_avg_time_ms;
-        double load_balance_variance;  // Measure of load distribution
+        std::vector<uint64_t> packets_per_worker;
+        std::vector<uint64_t> drops_per_worker;
+        std::vector<uint64_t> accepts_per_worker;
+        std::vector<double> avg_time_per_worker;
+        uint64_t total_packets;
+        uint64_t total_drops;
+        uint64_t queue_overflows;
+        double load_variance;
     };
-    
     Stats GetStats() const;
     void PrintStats() const;
 
 private:
-    // Worker management
-    void WorkerLoop(size_t worker_id);
-    size_t GetOptimalWorkerCount() const;
-    void SetWorkerAffinity(size_t worker_id);
-    
-    // Hash-based dispatch
-    size_t ComputeWorkerHash(const PacketData& packet) const;
-    
-    // Per-worker resources
+    // Worker context
     struct WorkerContext {
         std::thread thread;
-        std::queue<std::unique_ptr<WorkItem>> queue;
+        std::queue<std::pair<PacketData, std::function<void(FilterResult)>>> queue;
         std::unique_ptr<std::mutex> queue_mutex;
         std::unique_ptr<std::condition_variable> queue_cv;
         std::unique_ptr<TCPReassembler> reassembler;
         
-        // Per-worker stats
         std::atomic<uint64_t> packets_processed{0};
         std::atomic<uint64_t> packets_dropped{0};
         std::atomic<uint64_t> packets_accepted{0};
@@ -93,16 +62,18 @@ private:
             : queue_mutex(std::make_unique<std::mutex>()),
               queue_cv(std::make_unique<std::condition_variable>()),
               reassembler(std::make_unique<TCPReassembler>()) {}
-
+        
+        // ✅ Suppression des constructeurs de copie
         WorkerContext(const WorkerContext&) = delete;
         WorkerContext& operator=(const WorkerContext&) = delete;
-
+        
+        // ✅ Constructeur de déplacement
         WorkerContext(WorkerContext&& other) noexcept
             : thread(std::move(other.thread)),
               queue(std::move(other.queue)),
               queue_mutex(std::move(other.queue_mutex)),
               queue_cv(std::move(other.queue_cv)),
-              reassembler(std::make_unique<TCPReassembler>()) 
+              reassembler(std::make_unique<TCPReassembler>())
         {
             packets_processed.store(other.packets_processed.load());
             packets_dropped.store(other.packets_dropped.load());
@@ -112,21 +83,21 @@ private:
     };
     
     std::vector<WorkerContext> workers_;
-    size_t num_workers_;
-    
-    // Rule engine (shared read-only)
     std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>> rules_by_layer_;
     
-    // Running state
+    size_t num_workers_;
     std::atomic<bool> running_{false};
+    std::atomic<uint64_t> queue_overflows_{0};
     
-    // Global stats
-    std::atomic<uint64_t> total_dispatched_{0};
-    std::atomic<uint64_t> queue_full_drops_{0};
+    static constexpr size_t MAX_QUEUE_SIZE = 10000;
     
-    // Configuration
-    static constexpr size_t MAX_QUEUE_SIZE_PER_WORKER = 10000;
-    static constexpr size_t CLEANUP_INTERVAL_PACKETS = 1000;
+    // Worker management
+    void WorkerLoop(size_t worker_id);
+    size_t HashDispatch(const PacketData& packet) const;
+    void SetWorkerAffinity(size_t worker_id);
+    
+    // Statistics
+    double CalculateLoadVariance() const;
 };
 
 #endif // WORKER_POOL_H

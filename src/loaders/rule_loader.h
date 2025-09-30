@@ -5,36 +5,43 @@
 #include <vector>
 #include <memory>
 #include <unordered_map>
-#include <nlohmann/json.hpp>
+#include <nlohmann/json.hpp>  // ✅ Include direct au lieu de forward declaration
+
+// Forward declarations
+enum class RuleLayer;
+enum class RuleType;
+enum class RuleAction;
+struct Rule;
 
 // ============================================================
 // RULE LOADER - JSON PARSING
 // ============================================================
 class RuleLoader {
 public:
-    // Load rules from JSON file
+    // Main loading function
     static std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>> 
-    LoadRules(const std::string& file_path);
+        LoadRules(const std::string& file_path);
     
-    // Validate rules file format
+    // Validation
     static bool ValidateRulesFile(const std::string& file_path);
     
-    // Print summary of loaded rules
-    static void PrintRulesSummary(const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules);
+    // Statistics
+    static void PrintRulesSummary(const std::unordered_map<RuleLayer, 
+                                  std::vector<std::unique_ptr<Rule>>>& rules);
 
 private:
-    // Parse individual rule from JSON
-    static std::unique_ptr<Rule> ParseRule(const nlohmann::json& rule_json);
+    using json = nlohmann::json;
     
-    // Parse enum types from strings
+    // Parsing helpers
+    static std::unique_ptr<Rule> ParseRule(const json& rule_json);
     static RuleLayer ParseRuleLayer(int layer);
     static RuleType ParseRuleType(const std::string& type_str);
     static RuleAction ParseRuleAction(const std::string& action_str);
     
-    // Validate rule consistency
+    // Validation
     static bool ValidateRule(const std::unique_ptr<Rule>& rule);
     
-    // Static lookup tables for parsing
+    // Lookup tables
     static const std::unordered_map<std::string, RuleType> rule_type_map_;
     static const std::unordered_map<std::string, RuleAction> rule_action_map_;
 };
