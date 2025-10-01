@@ -1,5 +1,4 @@
-#ifndef WORKER_POOL_H
-#define WORKER_POOL_H
+#pragma once
 
 #include "rule_engine.h"
 #include "../handlers/tcp_reassembler.h"
@@ -13,24 +12,18 @@
 #include <functional>
 #include <memory>
 
-// ============================================================
-// WORKER POOL - HASH-BASED DISPATCH MULTI-THREADING
-// ============================================================
 class WorkerPool {
 public:
-    // Constructor / Destructor
     explicit WorkerPool(
         const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules,
-        size_t num_workers = 0
+        size_t num_workers = std::thread::hardware_concurrency()
     );
     ~WorkerPool();
 
-    // Core operations
     void Start();
     void Stop();
     void SubmitPacket(const PacketData& packet, std::function<void(FilterResult)> callback);
 
-    // Statistics
     struct Stats {
         size_t num_workers;
         uint64_t total_dispatched;
@@ -50,7 +43,6 @@ public:
     void PrintStats() const;
 
 private:
-    // Worker context
     struct WorkerContext {
         std::thread thread;
         std::queue<std::pair<PacketData, std::function<void(FilterResult)>>> queue;
@@ -86,17 +78,20 @@ private:
 
     std::vector<WorkerContext> workers_;
     size_t num_workers_;
-    std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>> rules_by_layer_;
+    
+    // ✅ CORRECTION : Stocker les règles par RÉFÉRENCE (const) au lieu de copier
+    const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules_by_layer_;
+    
     std::atomic<bool> running_{false};
     std::atomic<uint64_t> total_dispatched_{0};
     std::atomic<uint64_t> queue_overflows_{0};
 
     static constexpr size_t MAX_QUEUE_SIZE = 10000;
 
-    // Hash dispatch
     size_t HashDispatch(const PacketData& packet) const;
     void WorkerLoop(size_t worker_id);
     double CalculateLoadVariance() const;
+    
+    // ✅ CORRECTION : Ajouter la déclaration de SetWorkerAffinity
+    void SetWorkerAffinity(size_t worker_id);
 };
-
-#endif // WORKER_POOL_H

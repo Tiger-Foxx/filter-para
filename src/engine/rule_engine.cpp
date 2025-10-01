@@ -225,9 +225,9 @@ bool RuleEngine::EvaluateL7Rule(const Rule& rule, const PacketData& packet) cons
                     if (MatchPattern(pattern, packet.http_method)) return true;
                 } else if (rule.field == "http.user_agent") {
                     if (MatchPattern(pattern, packet.http_user_agent)) return true;
-                } else if (rule.field == "payload") {
-                    if (MatchPattern(pattern, packet.payload, packet.payload_len)) return true;
                 }
+                // ✅ CORRECTION : On ne peut pas tester payload car il n'existe pas dans PacketData
+                // On peut uniquement tester les champs HTTP ci-dessus
             }
             return false;
         }
