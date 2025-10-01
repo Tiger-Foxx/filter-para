@@ -10,24 +10,26 @@
 #include <errno.h>
 
 // ============================================================
-// ORDRE CRITIQUE : Linux headers EN PREMIER
+// ✅ ORDRE CORRECT : libnetfilter_queue EN PREMIER
 // ============================================================
-#include <linux/netfilter.h>
-#include <libnetfilter_queue/libnetfilter_queue.h>
-#include <linux/ip.h>
-#include <linux/tcp.h>
-#include <linux/udp.h>
+extern "C" {
+    #include <libnetfilter_queue/libnetfilter_queue.h>
+    #include <linux/netfilter.h>
+    #include <linux/ip.h>
+    #include <linux/tcp.h>
+    #include <linux/udp.h>
+}
 
 // ============================================================
-// PUIS les headers glibc (APRÈS linux/ pour éviter conflits)
+// PUIS glibc headers (APRÈS linux/ pour éviter conflits)
 // ============================================================
 #include <arpa/inet.h>
 
 // ============================================================
-// CALLBACK C POUR NFQUEUE (RENOMMÉ pour éviter conflit typedef)
+// CALLBACK C POUR NFQUEUE
 // ============================================================
-static int packet_handler_nfq_callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
-                                       struct nfq_data *nfa, void *data) {
+static int nfq_packet_callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
+                               struct nfq_data *nfa, void *data) {
     auto* handler = static_cast<PacketHandler*>(data);
     return handler->HandlePacket(qh, nfmsg, nfa);
 }
@@ -71,8 +73,7 @@ bool PacketHandler::Initialize() {
         return false;
     }
 
-    // ✅ CORRECTION : Utiliser le callback renommé
-    queue_handle_ = nfq_create_queue(nfq_handle_, queue_num_, &packet_handler_nfq_callback, this);
+    queue_handle_ = nfq_create_queue(nfq_handle_, queue_num_, &nfq_packet_callback, this);
     if (!queue_handle_) {
         std::cerr << "❌ ERROR: nfq_create_queue() failed for queue " << queue_num_ << std::endl;
         nfq_close(nfq_handle_);

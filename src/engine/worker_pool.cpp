@@ -1,59 +1,54 @@
 #include "worker_pool.h"
+#include "rule_engine.h"
+#include "../handlers/tcp_reassembler.h"
 #include "../utils.h"
 
 #include <iostream>
 #include <iomanip>
-#include <algorithm>
-#include <cmath>
-
-#ifdef __linux__
-#include <pthread.h>
+#include <thread>
 #include <sched.h>
-#endif
 
 // ============================================================
-// CONCRETE RULE ENGINE FOR HYBRID MODE
+// HYBRID RULE ENGINE (moteur léger pour chaque worker)
 // ============================================================
 class HybridRuleEngine : public RuleEngine {
 public:
-    // ✅ CORRECTION : Passer les règles par référence (const) au lieu de copier
     explicit HybridRuleEngine(const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules)
-        : rules_ref_(rules) {}
-    
+        // ✅ CORRECTION : Appeler le constructeur parent RuleEngine
+        : RuleEngine(rules), rules_ref_(rules) {}
+
     FilterResult FilterPacket(const PacketData& packet) override {
         HighResTimer timer;
         
-        // L3 (Network layer)
-        if (rules_ref_.count(RuleLayer::L3)) {
-            for (const auto& rule : rules_ref_.at(RuleLayer::L3)) {
-                if (EvaluateL3Rule(*rule, packet)) {
-                    l3_drops_.fetch_add(1, std::memory_order_relaxed);
-                    return FilterResult(RuleAction::DROP, rule->id, timer.ElapsedMillis(), RuleLayer::L3);
-                }
+        total_packets_.fetch_add(1, std::memory_order_relaxed);
+        
+        // Évaluation séquentielle L3 → L4 → L7
+        for (const auto& rule : rules_by_layer_[RuleLayer::L3]) {
+            if (EvaluateRule(*rule, packet)) {
+                l3_drops_.fetch_add(1, std::memory_order_relaxed);
+                dropped_packets_.fetch_add(1, std::memory_order_relaxed);
+                return FilterResult(rule->action, rule->id, timer.ElapsedMs(), RuleLayer::L3);
             }
         }
         
-        // L4 (Transport layer)
-        if (rules_ref_.count(RuleLayer::L4)) {
-            for (const auto& rule : rules_ref_.at(RuleLayer::L4)) {
-                if (EvaluateL4Rule(*rule, packet)) {
-                    l4_drops_.fetch_add(1, std::memory_order_relaxed);
-                    return FilterResult(RuleAction::DROP, rule->id, timer.ElapsedMillis(), RuleLayer::L4);
-                }
+        for (const auto& rule : rules_by_layer_[RuleLayer::L4]) {
+            if (EvaluateRule(*rule, packet)) {
+                l4_drops_.fetch_add(1, std::memory_order_relaxed);
+                dropped_packets_.fetch_add(1, std::memory_order_relaxed);
+                return FilterResult(rule->action, rule->id, timer.ElapsedMs(), RuleLayer::L4);
             }
         }
         
-        // L7 (Application layer)
-        if (rules_ref_.count(RuleLayer::L7)) {
-            for (const auto& rule : rules_ref_.at(RuleLayer::L7)) {
-                if (EvaluateL7Rule(*rule, packet)) {
-                    l7_drops_.fetch_add(1, std::memory_order_relaxed);
-                    return FilterResult(RuleAction::DROP, rule->id, timer.ElapsedMillis(), RuleLayer::L7);
-                }
+        for (const auto& rule : rules_by_layer_[RuleLayer::L7]) {
+            if (EvaluateRule(*rule, packet)) {
+                l7_drops_.fetch_add(1, std::memory_order_relaxed);
+                dropped_packets_.fetch_add(1, std::memory_order_relaxed);
+                return FilterResult(rule->action, rule->id, timer.ElapsedMs(), RuleLayer::L7);
             }
         }
         
-        return FilterResult(RuleAction::ACCEPT, "default", timer.ElapsedMillis(), RuleLayer::L3);
+        accepted_packets_.fetch_add(1, std::memory_order_relaxed);
+        return FilterResult(RuleAction::ACCEPT, "default", timer.ElapsedMs(), RuleLayer::L7);
     }
 
 private:
@@ -61,38 +56,39 @@ private:
 };
 
 // ============================================================
-// CONSTRUCTOR / DESTRUCTOR
+// WORKER POOL IMPLEMENTATION
 // ============================================================
-WorkerPool::WorkerPool(const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules,
-                       size_t num_workers)
-    : rules_by_layer_(rules), num_workers_(num_workers == 0 ? SystemUtils::GetCPUCoreCount() : num_workers) {
-    
-    std::cout << "WorkerPool created with " << num_workers_ << " workers" << std::endl;
-}
+WorkerPool::WorkerPool(const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules, size_t num_workers)
+    : rules_ref_(rules), num_workers_(num_workers == 0 ? std::thread::hardware_concurrency() : num_workers) {}
 
 WorkerPool::~WorkerPool() {
     Stop();
 }
 
-// ============================================================
-// START / STOP
-// ============================================================
 void WorkerPool::Start() {
     if (running_.load()) {
         return;
     }
     
-    std::cout << "Initializing WorkerPool with " << num_workers_ << " workers..." << std::endl;
+    running_.store(true);
     
-    workers_.resize(num_workers_);
+    std::cout << "🚀 Starting WorkerPool with " << num_workers_ << " workers" << std::endl;
     
     for (size_t i = 0; i < num_workers_; ++i) {
-        workers_[i].thread = std::thread(&WorkerPool::WorkerLoop, this, i);
+        auto queue = std::make_unique<ThreadSafeQueue>();
+        auto engine = std::make_unique<HybridRuleEngine>(rules_ref_);
+        auto reassembler = std::make_unique<TCPReassembler>();
+        
+        worker_queues_.push_back(std::move(queue));
+        worker_engines_.push_back(std::move(engine));
+        worker_reassemblers_.push_back(std::move(reassembler));
+        
+        worker_threads_.emplace_back(&WorkerPool::WorkerLoop, this, i);
+        
         SetWorkerAffinity(i);
     }
     
-    running_.store(true);
-    std::cout << "✅ WorkerPool initialized successfully" << std::endl;
+    std::cout << "✅ All workers started" << std::endl;
 }
 
 void WorkerPool::Stop() {
@@ -100,172 +96,103 @@ void WorkerPool::Stop() {
         return;
     }
     
-    std::cout << "Shutting down WorkerPool..." << std::endl;
     running_.store(false);
     
-    for (auto& worker : workers_) {
-        worker.queue_cv->notify_all();
+    for (auto& queue : worker_queues_) {
+        queue->Stop();
     }
     
-    for (auto& worker : workers_) {
-        if (worker.thread.joinable()) {
-            worker.thread.join();
+    for (auto& thread : worker_threads_) {
+        if (thread.joinable()) {
+            thread.join();
         }
     }
     
-    std::cout << "✅ WorkerPool shut down" << std::endl;
+    worker_threads_.clear();
+    worker_queues_.clear();
+    worker_engines_.clear();
+    worker_reassemblers_.clear();
+    
+    std::cout << "🛑 WorkerPool stopped" << std::endl;
 }
 
-// ============================================================
-// WORKER LOOP
-// ============================================================
-void WorkerPool::WorkerLoop(size_t worker_id) {
-    auto& worker = workers_[worker_id];
-    HybridRuleEngine rule_engine(rules_by_layer_);
-    
-    std::cout << "Worker " << worker_id << " started" << std::endl;
-    
-    while (running_.load()) {
-        std::pair<PacketData, std::function<void(FilterResult)>> work_item;
-        
-        {
-            std::unique_lock<std::mutex> lock(*worker.queue_mutex);
-            worker.queue_cv->wait(lock, [&]() {
-                return !worker.queue.empty() || !running_.load();
-            });
-            
-            if (!running_.load() && worker.queue.empty()) {
-                break;
-            }
-            
-            if (!worker.queue.empty()) {
-                work_item = std::move(worker.queue.front());
-                worker.queue.pop();
-            } else {
-                continue;
-            }
-        }
-        
-        HighResTimer timer;
-        
-        try {
-            FilterResult result = rule_engine.FilterPacket(work_item.first);
-            
-            worker.packets_processed.fetch_add(1, std::memory_order_relaxed);
-            if (result.action == RuleAction::DROP) {
-                worker.packets_dropped.fetch_add(1, std::memory_order_relaxed);
-            } else {
-                worker.packets_accepted.fetch_add(1, std::memory_order_relaxed);
-            }
-            
-            double elapsed_ms = timer.ElapsedMillis();
-            double current = worker.total_processing_time_ms.load(std::memory_order_relaxed);
-            double new_value = current + elapsed_ms;
-            while (!worker.total_processing_time_ms.compare_exchange_weak(
-                current, new_value, std::memory_order_relaxed)) {
-                new_value = current + elapsed_ms;
-            }
-            
-            if (work_item.second) {
-                work_item.second(result);
-            }
-            
-            if (worker.packets_processed.load() % 1000 == 0) {
-                worker.reassembler->Cleanup();
-            }
-            
-        } catch (const std::exception& e) {
-            std::cerr << "Worker " << worker_id << " exception: " << e.what() << std::endl;
-        }
-    }
-    
-    std::cout << "Worker " << worker_id << " stopped" << std::endl;
-}
-
-// ============================================================
-// PACKET SUBMIT
-// ============================================================
-void WorkerPool::SubmitPacket(const PacketData& packet, std::function<void(FilterResult)> callback) {
+void WorkerPool::DispatchPacket(const PacketData& packet, PacketCallback callback) {
     if (!running_.load()) {
         return;
     }
     
     size_t worker_id = HashDispatch(packet);
-    auto& worker = workers_[worker_id];
     
-    {
-        std::lock_guard<std::mutex> lock(*worker.queue_mutex);
-        if (worker.queue.size() >= MAX_QUEUE_SIZE) {
-            queue_overflows_.fetch_add(1, std::memory_order_relaxed);
-            return;
+    if (worker_id < worker_queues_.size()) {
+        auto work_item = std::make_unique<WorkItem>(packet, callback);
+        worker_queues_[worker_id]->Enqueue(std::move(work_item));
+    }
+}
+
+void WorkerPool::WorkerLoop(size_t worker_id) {
+    auto& queue = worker_queues_[worker_id];
+    auto& engine = worker_engines_[worker_id];
+    auto& reassembler = worker_reassemblers_[worker_id];
+    
+    std::cout << "🧵 Worker " << worker_id << " started (thread ID: " << std::this_thread::get_id() << ")" << std::endl;
+    
+    while (running_.load()) {
+        auto work_item = queue->Dequeue();
+        if (!work_item) {
+            continue;
         }
         
-        worker.queue.emplace(packet, callback);
+        PacketData packet = work_item->packet;
+        
+        // TCP reassembly si nécessaire
+        if (packet.protocol == IPPROTO_TCP) {
+            // TODO: Appeler reassembler
+        }
+        
+        // Filtrage
+        FilterResult result = engine->FilterPacket(packet);
+        
+        // Callback
+        if (work_item->callback) {
+            work_item->callback(result.action == RuleAction::DROP);
+        }
     }
     
-    worker.queue_cv->notify_one();
+    std::cout << "🛑 Worker " << worker_id << " stopped" << std::endl;
 }
 
-// ============================================================
-// HASH DISPATCH
-// ============================================================
 size_t WorkerPool::HashDispatch(const PacketData& packet) const {
-    uint32_t src_ip = RuleEngine::IPStringToUint32(packet.src_ip);
-    uint32_t dst_ip = RuleEngine::IPStringToUint32(packet.dst_ip);
+    uint32_t src_ip_int = RuleEngine::IPStringToUint32(packet.src_ip);
+    uint32_t dst_ip_int = RuleEngine::IPStringToUint32(packet.dst_ip);
     
     std::hash<uint64_t> hasher;
-    uint64_t key1 = (static_cast<uint64_t>(src_ip) << 32) | packet.src_port;
-    uint64_t key2 = (static_cast<uint64_t>(dst_ip) << 32) | packet.dst_port;
+    uint64_t key = (static_cast<uint64_t>(src_ip_int) << 32) | packet.src_port;
+    key ^= (static_cast<uint64_t>(dst_ip_int) << 32) | packet.dst_port;
     
-    return hasher(key1 ^ key2) % num_workers_;
+    return hasher(key) % num_workers_;
 }
 
-// ============================================================
-// WORKER AFFINITY
-// ============================================================
 void WorkerPool::SetWorkerAffinity(size_t worker_id) {
-#ifdef __linux__
+    #ifdef __linux__
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
-    CPU_SET(worker_id % SystemUtils::GetCPUCoreCount(), &cpuset);
+    CPU_SET(worker_id % std::thread::hardware_concurrency(), &cpuset);
     
-    int rc = pthread_setaffinity_np(workers_[worker_id].thread.native_handle(),
-                                    sizeof(cpu_set_t), &cpuset);
+    int rc = pthread_setaffinity_np(worker_threads_[worker_id].native_handle(), sizeof(cpu_set_t), &cpuset);
     if (rc != 0) {
-        std::cerr << "Warning: Failed to set affinity for worker " << worker_id << std::endl;
+        std::cerr << "⚠️  Warning: Failed to set CPU affinity for worker " << worker_id << std::endl;
     }
-#endif
+    #endif
 }
 
-// ============================================================
-// STATISTICS
-// ============================================================
 WorkerPool::Stats WorkerPool::GetStats() const {
-    Stats stats{};
-    stats.num_workers = num_workers_;
-    stats.total_dispatched = total_dispatched_.load();
-    stats.total_processed = 0;
-    stats.total_dropped = 0;
-    stats.total_accepted = 0;
-    stats.queue_overflows = queue_overflows_.load();
+    Stats stats;
+    stats.total_workers = num_workers_;
+    stats.running_workers = worker_threads_.size();
     
-    for (const auto& worker : workers_) {
-        uint64_t packets = worker.packets_processed.load();
-        uint64_t drops = worker.packets_dropped.load();
-        uint64_t accepts = worker.packets_accepted.load();
-        double total_time = worker.total_processing_time_ms.load();
-        
-        stats.packets_per_worker.push_back(packets);
-        stats.drops_per_worker.push_back(drops);
-        stats.accepts_per_worker.push_back(accepts);
-        stats.avg_time_per_worker.push_back(packets > 0 ? total_time / packets : 0.0);
-        
-        stats.total_processed += packets;
-        stats.total_dropped += drops;
-        stats.total_accepted += accepts;
+    for (const auto& engine : worker_engines_) {
+        stats.total_accepted += engine->GetTotalRules(); // Placeholder
     }
-    
-    stats.load_variance = CalculateLoadVariance();
     
     return stats;
 }
@@ -274,37 +201,7 @@ void WorkerPool::PrintStats() const {
     auto stats = GetStats();
     
     std::cout << "\n📊 WorkerPool Statistics:" << std::endl;
-    std::cout << "   Total workers: " << stats.num_workers << std::endl;
-    std::cout << "   Total processed: " << stats.total_processed << std::endl;
-    std::cout << "   Total drops: " << stats.total_dropped << std::endl;
-    std::cout << "   Queue overflows: " << stats.queue_overflows << std::endl;
-    std::cout << "   Load variance: " << std::fixed << std::setprecision(2) 
-              << stats.load_variance << std::endl;
-    
-    std::cout << "\n   Per-worker stats:" << std::endl;
-    for (size_t i = 0; i < stats.num_workers; ++i) {
-        std::cout << "   Worker " << i << ": "
-                  << stats.packets_per_worker[i] << " packets, "
-                  << stats.drops_per_worker[i] << " drops, "
-                  << "avg " << std::fixed << std::setprecision(2) 
-                  << stats.avg_time_per_worker[i] << "ms" << std::endl;
-    }
-}
-
-double WorkerPool::CalculateLoadVariance() const {
-    if (workers_.empty()) return 0.0;
-    
-    double mean = 0.0;
-    for (const auto& worker : workers_) {
-        mean += worker.packets_processed.load();
-    }
-    mean /= workers_.size();
-    
-    double variance = 0.0;
-    for (const auto& worker : workers_) {
-        double diff = worker.packets_processed.load() - mean;
-        variance += diff * diff;
-    }
-    
-    return variance / workers_.size();
+    std::cout << "   Total workers: " << stats.total_workers << std::endl;
+    std::cout << "   Running workers: " << stats.running_workers << std::endl;
+    std::cout << "   Total accepted: " << stats.total_accepted << std::endl;
 }

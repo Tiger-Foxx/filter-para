@@ -12,7 +12,6 @@
 // RULE COMPILATION METHODS
 // ============================================================
 void Rule::CompilePatterns() {
-    // Compile regex patterns for L7 rules (HTTP URI, payload, etc.)
     if (type == RuleType::PATTERN) {
         for (const auto& pattern_str : values) {
             int errorcode;
@@ -21,7 +20,7 @@ void Rule::CompilePatterns() {
             pcre2_code* compiled = pcre2_compile(
                 reinterpret_cast<PCRE2_SPTR>(pattern_str.c_str()),
                 PCRE2_ZERO_TERMINATED,
-                PCRE2_CASELESS,  // Case-insensitive
+                PCRE2_CASELESS,
                 &errorcode,
                 &erroroffset,
                 nullptr
@@ -40,19 +39,16 @@ void Rule::CompilePatterns() {
 }
 
 void Rule::CompileIPRanges() {
-    // Pre-parse IP ranges for fast L3 matching
     if (type == RuleType::IP_RANGE) {
         for (const auto& cidr : values) {
             size_t slash_pos = cidr.find('/');
             
             if (slash_pos == std::string::npos) {
-                // Single IP address
                 uint32_t ip = RuleEngine::IPStringToUint32(cidr);
                 if (ip != 0) {
                     ip_ranges_.push_back({ip, 0xFFFFFFFF});
                 }
             } else {
-                // CIDR notation (e.g., 192.168.1.0/24)
                 std::string network_str = cidr.substr(0, slash_pos);
                 int prefix_len = std::stoi(cidr.substr(slash_pos + 1));
                 
@@ -77,7 +73,6 @@ void Rule::CompileIPRanges() {
 // RULE ENGINE IMPLEMENTATION
 // ============================================================
 RuleEngine::RuleEngine(const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules) {
-    // Deep copy rules (with move semantics for performance)
     for (const auto& [layer, layer_rules] : rules) {
         rules_by_layer_[layer] = std::vector<std::unique_ptr<Rule>>();
         
@@ -90,13 +85,8 @@ RuleEngine::RuleEngine(const std::unordered_map<RuleLayer, std::vector<std::uniq
             rule_copy->values = rule->values;
             rule_copy->field = rule->field;
             
-            // Copy compiled patterns and IP ranges (already compiled)
             rule_copy->compiled_patterns_ = rule->compiled_patterns_;
             rule_copy->ip_ranges_ = rule->ip_ranges_;
-            
-            // Important: Clear source rule's compiled_patterns to avoid double-free
-            // (since we're sharing the pointers)
-            // NOTE: This is safe because we're moving ownership
             
             rules_by_layer_[layer].push_back(std::move(rule_copy));
         }
@@ -174,17 +164,19 @@ bool RuleEngine::EvaluateRule(const Rule& rule, const PacketData& packet) const 
 bool RuleEngine::EvaluateL3Rule(const Rule& rule, const PacketData& packet) const {
     switch (rule.type) {
         case RuleType::IP_RANGE: {
+            // ✅ CORRECTION : Convertir string → uint32_t AVANT IsIPInRange
+            uint32_t src_ip_int = IPStringToUint32(packet.src_ip);
+            uint32_t dst_ip_int = IPStringToUint32(packet.dst_ip);
+            
             for (const auto& range : rule.ip_ranges_) {
-                if (IsIPInRange(packet.src_ip, range) || IsIPInRange(packet.dst_ip, range)) {
+                if (IsIPInRange(src_ip_int, range) || IsIPInRange(dst_ip_int, range)) {
                     return true;
                 }
             }
             return false;
         }
         case RuleType::GEO: {
-            // GEOIP lookup logic would go here.
-            // This is a placeholder.
-            return false;
+            return false; // Placeholder for GeoIP
         }
         default:
             return false;
@@ -226,8 +218,6 @@ bool RuleEngine::EvaluateL7Rule(const Rule& rule, const PacketData& packet) cons
                 } else if (rule.field == "http.user_agent") {
                     if (MatchPattern(pattern, packet.http_user_agent)) return true;
                 }
-                // ✅ CORRECTION : On ne peut pas tester payload car il n'existe pas dans PacketData
-                // On peut uniquement tester les champs HTTP ci-dessus
             }
             return false;
         }
@@ -241,7 +231,6 @@ bool RuleEngine::EvaluateL7Rule(const Rule& rule, const PacketData& packet) cons
 // ============================================================
 bool RuleEngine::IsIPInRange(uint32_t ip_addr, const Rule::IPRange& range) {
     if (ip_addr == 0) return false;
-    
     return (ip_addr & range.mask) == range.network;
 }
 
@@ -253,6 +242,16 @@ uint32_t RuleEngine::IPStringToUint32(const std::string& ip) {
     return 0;
 }
 
+std::string RuleEngine::IPUint32ToString(uint32_t ip) {
+    struct in_addr addr;
+    addr.s_addr = htonl(ip);
+    char buf[INET_ADDRSTRLEN];
+    if (inet_ntop(AF_INET, &addr, buf, INET_ADDRSTRLEN)) {
+        return std::string(buf);
+    }
+    return "";
+}
+
 bool RuleEngine::MatchPattern(void* compiled_pattern, const std::string& text) const {
     if (!compiled_pattern || text.empty()) {
         return false;
@@ -262,24 +261,6 @@ bool RuleEngine::MatchPattern(void* compiled_pattern, const std::string& text) c
         static_cast<pcre2_code*>(compiled_pattern),
         reinterpret_cast<PCRE2_SPTR>(text.c_str()),
         text.length(),
-        0,
-        0,
-        match_data,
-        nullptr
-    );
-    pcre2_match_data_free(match_data);
-    return rc >= 0;
-}
-
-bool RuleEngine::MatchPattern(void* compiled_pattern, const uint8_t* data, size_t len) const {
-    if (!compiled_pattern || !data || len == 0) {
-        return false;
-    }
-    pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(static_cast<pcre2_code*>(compiled_pattern), nullptr);
-    int rc = pcre2_match(
-        static_cast<pcre2_code*>(compiled_pattern),
-        data,
-        len,
         0,
         0,
         match_data,
