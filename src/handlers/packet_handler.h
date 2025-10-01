@@ -85,6 +85,31 @@ private:
     // HTTP ports for reassembly detection
     std::unordered_set<uint16_t> http_ports_ = {80, 443, 8080, 8443, 8000, 3000};
     
+    // ============================================================
+    // L7 PACKET BUFFERING (per-connection queuing)
+    // ============================================================
+    struct PendingPacket {
+        uint32_t nfq_id;                    // NFQUEUE packet ID
+        struct nfq_q_handle* qh;            // Queue handle
+        PacketData parsed_data;             // Parsed packet data
+        std::chrono::steady_clock::time_point timestamp;  // For timeout
+        
+        PendingPacket(uint32_t id, struct nfq_q_handle* q, const PacketData& data)
+            : nfq_id(id), qh(q), parsed_data(data), 
+              timestamp(std::chrono::steady_clock::now()) {}
+    };
+    
+    // Map: connection_key -> list of pending packets
+    std::unordered_map<uint64_t, std::vector<PendingPacket>> pending_packets_;
+    mutable std::mutex pending_mutex_;
+    
+    // Timeout for pending packets (5 seconds)
+    static constexpr uint32_t PENDING_TIMEOUT_MS = 5000;
+    
+    // Helper to flush pending packets
+    void FlushPendingPackets(uint64_t connection_key, uint32_t verdict);
+    void CheckPendingTimeouts();
+    
     // Statistics (atomic)
     std::atomic<uint64_t> total_packets_{0};
     std::atomic<uint64_t> dropped_packets_{0};

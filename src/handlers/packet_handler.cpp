@@ -147,6 +147,7 @@ void PacketHandler::Start(PacketCallback callback) {
     std::cout << "🚀 PacketHandler listening on queue " << queue_num_ << std::endl;
 
     char buffer[65536] __attribute__((aligned));
+    auto last_timeout_check = std::chrono::steady_clock::now();
     
     while (running_.load()) {
         int len = recv(netlink_fd_, buffer, sizeof(buffer), 0);
@@ -156,7 +157,12 @@ void PacketHandler::Start(PacketCallback callback) {
                 std::cerr << "⚠️  WARNING: Packet buffer overrun" << std::endl;
                 continue;
             }
-            if (errno == EINTR || !running_.load()) {
+            if (errno == EINTR || errno == EBADF || !running_.load()) {
+                // EINTR: Interrupted by signal
+                // EBADF: Socket closed (called from Stop())
+                if (debug_mode_) {
+                    std::cout << "   recv() interrupted: " << strerror(errno) << std::endl;
+                }
                 break;
             }
             std::cerr << "❌ ERROR: recv() failed: " << strerror(errno) << std::endl;
@@ -166,9 +172,16 @@ void PacketHandler::Start(PacketCallback callback) {
         if (len == 0) continue;
 
         nfq_handle_packet(nfq_handle_, buffer, len);
+        
+        // Periodically check for timed-out buffered packets (every 1 second)
+        auto now = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_timeout_check).count() > 1000) {
+            CheckPendingTimeouts();
+            last_timeout_check = now;
+        }
     }
 
-    std::cout << "🛑 PacketHandler stopped" << std::endl;
+    std::cout << "🛑 PacketHandler loop exited cleanly" << std::endl;
 }
 
 // ============================================================
@@ -176,19 +189,50 @@ void PacketHandler::Start(PacketCallback callback) {
 // ============================================================
 void PacketHandler::Stop() {
     running_.store(false);
+    
+    std::cout << "🧹 Stopping PacketHandler..." << std::endl;
+
+    // Flush all pending packets (ACCEPT them) - DO THIS FIRST!
+    {
+        std::lock_guard<std::mutex> lock(pending_mutex_);
+        if (!pending_packets_.empty()) {
+            std::cout << "   Flushing " << pending_packets_.size() << " pending connections..." << std::endl;
+            
+            size_t total_packets = 0;
+            for (auto& [conn_key, packets] : pending_packets_) {
+                for (const auto& pending : packets) {
+                    nfq_set_verdict(pending.qh, pending.nfq_id, NF_ACCEPT, 0, nullptr);
+                    total_packets++;
+                }
+            }
+            pending_packets_.clear();
+            
+            std::cout << "   ✅ Flushed " << total_packets << " buffered packets (ACCEPTED)" << std::endl;
+        }
+    }
+    
+    // Close netlink socket to unblock recv()
+    if (netlink_fd_ >= 0) {
+        close(netlink_fd_);
+        netlink_fd_ = -1;
+        std::cout << "   ✅ Closed netlink socket" << std::endl;
+    }
 
     if (queue_handle_) {
         nfq_destroy_queue(queue_handle_);
         queue_handle_ = nullptr;
+        std::cout << "   ✅ Destroyed NFQUEUE" << std::endl;
     }
 
     if (nfq_handle_) {
         nfq_close(nfq_handle_);
         nfq_handle_ = nullptr;
+        std::cout << "   ✅ Closed NFQ handle" << std::endl;
     }
 
     if (tcp_reassembler_) {
         tcp_reassembler_->Cleanup();
+        std::cout << "   ✅ Cleaned up TCP reassembler" << std::endl;
     }
 
     {
@@ -232,6 +276,10 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
         }
 
         uint64_t conn_key = GetConnectionKey(parsed_packet);
+        
+        // ============================================================
+        // 1. CHECK IF CONNECTION ALREADY BLOCKED
+        // ============================================================
         if (conn_key != 0 && IsConnectionBlocked(conn_key)) {
             dropped_packets_.fetch_add(1, std::memory_order_relaxed);
             if (packet_callback_) packet_callback_(true);
@@ -241,14 +289,38 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
             return nfq_set_verdict(qh, nfq_id, NF_DROP, 0, nullptr);
         }
 
+        // ============================================================
+        // 2. HANDLE HTTP REASSEMBLY (if needed)
+        // ============================================================
+        bool http_complete = false;
         if (NeedsHTTPReassembly(parsed_packet)) {
             reassembled_packets_.fetch_add(1, std::memory_order_relaxed);
             HandleTCPReassembly(packet_data, packet_len, parsed_packet);
+            
+            // Check if HTTP request is now complete
+            http_complete = !parsed_packet.http_method.empty() && 
+                           !parsed_packet.http_uri.empty();
         }
 
-        // Soumettre le paquet au WorkerPool et attendre le résultat (synchrone)
-        // Note: Pour une vraie architecture asynchrone, il faudrait un système de queuing
-        // plus sophistiqué. Pour l'instant, on fait un dispatch synchrone.
+        // ============================================================
+        // 3. L7 BUFFERING LOGIC
+        // ============================================================
+        if (NeedsHTTPReassembly(parsed_packet) && !http_complete) {
+            // HTTP packet but request not complete yet -> BUFFER IT
+            std::lock_guard<std::mutex> lock(pending_mutex_);
+            pending_packets_[conn_key].emplace_back(nfq_id, qh, parsed_packet);
+            
+            LOG_DEBUG(debug_mode_, "BUFFERED packet " + std::to_string(packet_id) + 
+                     " - waiting for complete HTTP request (total buffered: " + 
+                     std::to_string(pending_packets_[conn_key].size()) + ")");
+            
+            // Don't send verdict yet - packet is held
+            return 0;
+        }
+
+        // ============================================================
+        // 4. EVALUATE RULES (L3/L4 always, L7 only if HTTP complete)
+        // ============================================================
         FilterResult result(RuleAction::ACCEPT, "pending", 0.0, RuleLayer::L3);
         std::atomic<bool> result_ready{false};
         
@@ -257,19 +329,21 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
             result_ready.store(true, std::memory_order_release);
         });
         
-        // Attendre le résultat (avec timeout de sécurité)
+        // Wait for result with timeout
         auto start_wait = std::chrono::steady_clock::now();
         while (!result_ready.load(std::memory_order_acquire)) {
             std::this_thread::sleep_for(std::chrono::microseconds(10));
             
             auto elapsed = std::chrono::steady_clock::now() - start_wait;
             if (elapsed > std::chrono::milliseconds(100)) {
-                // Timeout - accepter par défaut
                 LOG_DEBUG(debug_mode_, "WARNING: Worker timeout for packet " + std::to_string(packet_id));
                 break;
             }
         }
         
+        // ============================================================
+        // 5. APPLY VERDICT (to current packet + buffered packets)
+        // ============================================================
         uint32_t verdict = NF_ACCEPT;
         if (result.action == RuleAction::DROP) {
             verdict = NF_DROP;
@@ -290,6 +364,11 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
             
             LOG_DEBUG(debug_mode_, "ACCEPTED packet " + std::to_string(packet_id) + 
                      " in " + std::to_string(result.processing_time_ms) + "ms");
+        }
+        
+        // Flush all pending packets for this connection with same verdict
+        if (http_complete && conn_key != 0) {
+            FlushPendingPackets(conn_key, verdict);
         }
         
         return nfq_set_verdict(qh, nfq_id, verdict, 0, nullptr);
@@ -437,6 +516,74 @@ void PacketHandler::BlockConnection(uint64_t connection_key) {
         for (int i = 0; i < 10000 && it != blocked_connections_.end(); ++i) {
             it = blocked_connections_.erase(it);
         }
+    }
+}
+
+// ============================================================
+// L7 PACKET BUFFERING
+// ============================================================
+void PacketHandler::FlushPendingPackets(uint64_t connection_key, uint32_t verdict) {
+    std::lock_guard<std::mutex> lock(pending_mutex_);
+    
+    auto it = pending_packets_.find(connection_key);
+    if (it == pending_packets_.end()) {
+        return; // No pending packets
+    }
+    
+    size_t count = it->second.size();
+    if (count > 0) {
+        LOG_DEBUG(debug_mode_, "Flushing " + std::to_string(count) + 
+                 " buffered packets with verdict=" + (verdict == NF_DROP ? "DROP" : "ACCEPT"));
+        
+        // Send verdict for all buffered packets
+        for (const auto& pending : it->second) {
+            nfq_set_verdict(pending.qh, pending.nfq_id, verdict, 0, nullptr);
+            
+            if (verdict == NF_DROP) {
+                dropped_packets_.fetch_add(1, std::memory_order_relaxed);
+                if (packet_callback_) packet_callback_(true);
+            } else {
+                accepted_packets_.fetch_add(1, std::memory_order_relaxed);
+                if (packet_callback_) packet_callback_(false);
+            }
+        }
+    }
+    
+    // Remove from map
+    pending_packets_.erase(it);
+}
+
+void PacketHandler::CheckPendingTimeouts() {
+    std::lock_guard<std::mutex> lock(pending_mutex_);
+    
+    auto now = std::chrono::steady_clock::now();
+    std::vector<uint64_t> expired_connections;
+    
+    for (auto& [conn_key, packets] : pending_packets_) {
+        if (packets.empty()) continue;
+        
+        // Check oldest packet
+        auto age = std::chrono::duration_cast<std::chrono::milliseconds>(
+            now - packets.front().timestamp).count();
+        
+        if (age > PENDING_TIMEOUT_MS) {
+            LOG_DEBUG(debug_mode_, "TIMEOUT: Flushing " + std::to_string(packets.size()) + 
+                     " buffered packets after " + std::to_string(age) + "ms (ACCEPT by default)");
+            
+            // Accept all timed-out packets
+            for (const auto& pending : packets) {
+                nfq_set_verdict(pending.qh, pending.nfq_id, NF_ACCEPT, 0, nullptr);
+                accepted_packets_.fetch_add(1, std::memory_order_relaxed);
+                if (packet_callback_) packet_callback_(false);
+            }
+            
+            expired_connections.push_back(conn_key);
+        }
+    }
+    
+    // Clean up expired connections
+    for (uint64_t conn_key : expired_connections) {
+        pending_packets_.erase(conn_key);
     }
 }
 
