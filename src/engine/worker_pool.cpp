@@ -195,7 +195,15 @@ void WorkerPool::WorkerLoop(size_t worker_id) {
         
         // Mettre à jour les statistiques du worker
         worker.packets_processed.fetch_add(1, std::memory_order_relaxed);
-        worker.total_processing_time_ms.fetch_add(result.processing_time_ms, std::memory_order_relaxed);
+        
+        // Pour atomic<double>, fetch_add n'est pas disponible en C++17
+        // On utilise compare_exchange_weak en boucle
+        double old_time = worker.total_processing_time_ms.load(std::memory_order_relaxed);
+        while (!worker.total_processing_time_ms.compare_exchange_weak(
+            old_time, old_time + result.processing_time_ms, 
+            std::memory_order_relaxed, std::memory_order_relaxed)) {
+            // La boucle continue jusqu'à ce que l'échange réussisse
+        }
         
         if (result.action == RuleAction::DROP) {
             worker.packets_dropped.fetch_add(1, std::memory_order_relaxed);

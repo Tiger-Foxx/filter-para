@@ -23,11 +23,38 @@
 #include <arpa/inet.h>
 
 // ============================================================
-// PUIS libnetfilter_queue (évite conflits avec linux/in.h)
+// PUIS libnetfilter_queue
 // ============================================================
 extern "C" {
     #include <libnetfilter_queue/libnetfilter_queue.h>
 }
+
+// ============================================================
+// Définir les constantes NF_* si non définies (évite conflicts)
+// ============================================================
+#ifndef NF_DROP
+#define NF_DROP 0
+#endif
+
+#ifndef NF_ACCEPT
+#define NF_ACCEPT 1
+#endif
+
+#ifndef NF_STOLEN
+#define NF_STOLEN 2
+#endif
+
+#ifndef NF_QUEUE
+#define NF_QUEUE 3
+#endif
+
+#ifndef NF_REPEAT
+#define NF_REPEAT 4
+#endif
+
+#ifndef NF_STOP
+#define NF_STOP 5
+#endif
 
 // ============================================================
 // CALLBACK C POUR NFQUEUE
