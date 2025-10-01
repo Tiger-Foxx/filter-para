@@ -6,13 +6,14 @@
 #include <cstring>
 #include <arpa/inet.h>
 #include <algorithm>
+#include <pcre2.h>
 
 // ============================================================
 // RULE COMPILATION METHODS
 // ============================================================
 void Rule::CompilePatterns() {
     // Compile regex patterns for L7 rules (HTTP URI, payload, etc.)
-    if (type == RuleType::HTTP_URI_REGEX || type == RuleType::HTTP_PAYLOAD_REGEX) {
+    if (type == RuleType::PATTERN) {
         for (const auto& pattern_str : values) {
             int errorcode;
             PCRE2_SIZE erroroffset;
@@ -27,7 +28,7 @@ void Rule::CompilePatterns() {
             );
             
             if (compiled) {
-                compiled_patterns.push_back(compiled);
+                compiled_patterns_.push_back(compiled);
             } else {
                 PCRE2_UCHAR buffer[256];
                 pcre2_get_error_message(errorcode, buffer, sizeof(buffer));
@@ -40,7 +41,7 @@ void Rule::CompilePatterns() {
 
 void Rule::CompileIPRanges() {
     // Pre-parse IP ranges for fast L3 matching
-    if (type == RuleType::IP_SRC_IN || type == RuleType::IP_DST_IN) {
+    if (type == RuleType::IP_RANGE) {
         for (const auto& cidr : values) {
             size_t slash_pos = cidr.find('/');
             
@@ -48,7 +49,7 @@ void Rule::CompileIPRanges() {
                 // Single IP address
                 uint32_t ip = RuleEngine::IPStringToUint32(cidr);
                 if (ip != 0) {
-                    ip_ranges.push_back({ip, 0xFFFFFFFF});
+                    ip_ranges_.push_back({ip, 0xFFFFFFFF});
                 }
             } else {
                 // CIDR notation (e.g., 192.168.1.0/24)
@@ -65,7 +66,7 @@ void Rule::CompileIPRanges() {
                 uint32_t mask = (prefix_len == 0) ? 0 : (0xFFFFFFFF << (32 - prefix_len));
                 
                 if (network != 0) {
-                    ip_ranges.push_back({network & mask, mask});
+                    ip_ranges_.push_back({network & mask, mask});
                 }
             }
         }
@@ -90,8 +91,8 @@ RuleEngine::RuleEngine(const std::unordered_map<RuleLayer, std::vector<std::uniq
             rule_copy->field = rule->field;
             
             // Copy compiled patterns and IP ranges (already compiled)
-            rule_copy->compiled_patterns = rule->compiled_patterns;
-            rule_copy->ip_ranges = rule->ip_ranges;
+            rule_copy->compiled_patterns_ = rule->compiled_patterns_;
+            rule_copy->ip_ranges_ = rule->ip_ranges_;
             
             // Important: Clear source rule's compiled_patterns to avoid double-free
             // (since we're sharing the pointers)
@@ -170,50 +171,21 @@ bool RuleEngine::EvaluateRule(const Rule& rule, const PacketData& packet) const 
     }
 }
 
-bool RuleEngine::EvaluateL3Rule(const Rule& rule, const PacketData& packet) {
+bool RuleEngine::EvaluateL3Rule(const Rule& rule, const PacketData& packet) const {
     switch (rule.type) {
-        case RuleType::IP_SRC_IN: {
-            uint32_t src_ip = IPStringToUint32(packet.src_ip);
-            for (const auto& range : rule.ip_ranges) {
-                if (IsIPInRange(packet.src_ip, range)) {
+        case RuleType::IP_RANGE: {
+            for (const auto& range : rule.ip_ranges_) {
+                if (IsIPInRange(packet.src_ip, range) || IsIPInRange(packet.dst_ip, range)) {
                     return true;
                 }
             }
             return false;
         }
-        
-        case RuleType::IP_DST_IN: {
-            uint32_t dst_ip = IPStringToUint32(packet.dst_ip);
-            for (const auto& range : rule.ip_ranges) {
-                if (IsIPInRange(packet.dst_ip, range)) {
-                    return true;
-                }
-            }
+        case RuleType::GEO: {
+            // GEOIP lookup logic would go here.
+            // This is a placeholder.
             return false;
         }
-        
-        case RuleType::IP_SRC_COUNTRY: {
-            // Simplified country detection (can be enhanced with GeoIP)
-            // For now, use heuristic based on known IP ranges
-            for (const auto& country : rule.values) {
-                if (country == "CN" || country == "RU" || country == "IR" || country == "KP") {
-                    // Known prefixes for these countries (simplified)
-                    std::vector<std::string> known_prefixes = {
-                        "220.", "221.", "222.", "223.",  // China
-                        "94.", "95.", "178.", "188.",     // Russia
-                        "2.", "5."                         // Iran/North Korea
-                    };
-                    
-                    for (const auto& prefix : known_prefixes) {
-                        if (packet.src_ip.rfind(prefix, 0) == 0) {
-                            return true;
-                        }
-                    }
-                }
-            }
-            return false;
-        }
-        
         default:
             return false;
     }
@@ -221,9 +193,7 @@ bool RuleEngine::EvaluateL3Rule(const Rule& rule, const PacketData& packet) {
 
 bool RuleEngine::EvaluateL4Rule(const Rule& rule, const PacketData& packet) const {
     switch (rule.type) {
-        case RuleType::TCP_DST_PORT: {
-            if (packet.protocol != IPPROTO_TCP) return false;
-            
+        case RuleType::PORT: {
             for (const auto& port_str : rule.values) {
                 uint16_t port = static_cast<uint16_t>(std::stoi(port_str));
                 if (packet.dst_port == port) {
@@ -232,42 +202,14 @@ bool RuleEngine::EvaluateL4Rule(const Rule& rule, const PacketData& packet) cons
             }
             return false;
         }
-        
-        case RuleType::TCP_DST_PORT_NOT_IN: {
-            if (packet.protocol != IPPROTO_TCP) return false;
-            
-            for (const auto& port_str : rule.values) {
-                uint16_t port = static_cast<uint16_t>(std::stoi(port_str));
-                if (packet.dst_port == port) {
-                    return false;  // Port is in exclusion list
-                }
-            }
-            return true;  // Port not in list
-        }
-        
-        case RuleType::UDP_DST_PORT: {
-            if (packet.protocol != IPPROTO_UDP) return false;
-            
-            for (const auto& port_str : rule.values) {
-                uint16_t port = static_cast<uint16_t>(std::stoi(port_str));
-                if (packet.dst_port == port) {
+        case RuleType::PROTOCOL: {
+            for (const auto& proto_str : rule.values) {
+                if (packet.protocol == static_cast<uint8_t>(std::stoi(proto_str))) {
                     return true;
                 }
             }
             return false;
         }
-        
-        case RuleType::TCP_FLAGS: {
-            if (packet.protocol != IPPROTO_TCP) return false;
-            
-            for (const auto& flag : rule.values) {
-                if (StringUtils::Contains(packet.tcp_flags, flag)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        
         default:
             return false;
     }
@@ -275,101 +217,20 @@ bool RuleEngine::EvaluateL4Rule(const Rule& rule, const PacketData& packet) cons
 
 bool RuleEngine::EvaluateL7Rule(const Rule& rule, const PacketData& packet) const {
     switch (rule.type) {
-        case RuleType::HTTP_URI_REGEX: {
-            if (packet.http_uri.empty()) return false;
-            
-            for (auto* pattern : rule.compiled_patterns) {
-                if (!pattern) continue;
-                
-                pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(pattern, nullptr);
-                int rc = pcre2_match(
-                    pattern,
-                    reinterpret_cast<PCRE2_SPTR>(packet.http_uri.c_str()),
-                    packet.http_uri.length(),
-                    0,
-                    0,
-                    match_data,
-                    nullptr
-                );
-                
-                pcre2_match_data_free(match_data);
-                
-                if (rc >= 0) {
-                    return true;
+        case RuleType::PATTERN: {
+            for (auto* pattern : rule.compiled_patterns_) {
+                if (rule.field == "http.uri") {
+                    if (MatchPattern(pattern, packet.http_uri)) return true;
+                } else if (rule.field == "http.method") {
+                    if (MatchPattern(pattern, packet.http_method)) return true;
+                } else if (rule.field == "http.user_agent") {
+                    if (MatchPattern(pattern, packet.http_user_agent)) return true;
+                } else if (rule.field == "payload") {
+                    if (MatchPattern(pattern, packet.payload, packet.payload_len)) return true;
                 }
             }
             return false;
         }
-        
-        case RuleType::HTTP_HEADER_CONTAINS: {
-            std::string field_lower = StringUtils::ToLower(rule.field);
-            
-            for (const auto& [header_name, header_value] : packet.http_headers) {
-                if (StringUtils::ToLower(header_name) == field_lower) {
-                    std::string value_lower = StringUtils::ToLower(header_value);
-                    
-                    for (const auto& search_value : rule.values) {
-                        if (StringUtils::Contains(value_lower, StringUtils::ToLower(search_value))) {
-                            return true;
-                        }
-                    }
-                }
-            }
-            return false;
-        }
-        
-        case RuleType::HTTP_METHOD: {
-            std::string method_upper = StringUtils::ToLower(packet.http_method);
-            std::transform(method_upper.begin(), method_upper.end(), method_upper.begin(), ::toupper);
-            
-            for (const auto& allowed_method : rule.values) {
-                std::string allowed_upper = allowed_method;
-                std::transform(allowed_upper.begin(), allowed_upper.end(), allowed_upper.begin(), ::toupper);
-                
-                if (method_upper == allowed_upper) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        
-        case RuleType::HTTP_PAYLOAD_REGEX: {
-            if (packet.http_payload.empty()) return false;
-            
-            for (auto* pattern : rule.compiled_patterns) {
-                if (!pattern) continue;
-                
-                pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(pattern, nullptr);
-                int rc = pcre2_match(
-                    pattern,
-                    reinterpret_cast<PCRE2_SPTR>(packet.http_payload.c_str()),
-                    packet.http_payload.length(),
-                    0,
-                    0,
-                    match_data,
-                    nullptr
-                );
-                
-                pcre2_match_data_free(match_data);
-                
-                if (rc >= 0) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        
-        case RuleType::DNS_QUERY_CONTAINS: {
-            std::string query_lower = StringUtils::ToLower(packet.dns_query);
-            
-            for (const auto& domain : rule.values) {
-                if (StringUtils::Contains(query_lower, StringUtils::ToLower(domain))) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        
         default:
             return false;
     }
@@ -378,8 +239,7 @@ bool RuleEngine::EvaluateL7Rule(const Rule& rule, const PacketData& packet) cons
 // ============================================================
 // IP UTILITIES
 // ============================================================
-bool RuleEngine::IsIPInRange(const std::string& ip, const Rule::IPRange& range) {
-    uint32_t ip_addr = IPStringToUint32(ip);
+bool RuleEngine::IsIPInRange(uint32_t ip_addr, const Rule::IPRange& range) {
     if (ip_addr == 0) return false;
     
     return (ip_addr & range.mask) == range.network;
@@ -391,4 +251,40 @@ uint32_t RuleEngine::IPStringToUint32(const std::string& ip) {
         return ntohl(addr.s_addr);
     }
     return 0;
+}
+
+bool RuleEngine::MatchPattern(void* compiled_pattern, const std::string& text) const {
+    if (!compiled_pattern || text.empty()) {
+        return false;
+    }
+    pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(static_cast<pcre2_code*>(compiled_pattern), nullptr);
+    int rc = pcre2_match(
+        static_cast<pcre2_code*>(compiled_pattern),
+        reinterpret_cast<PCRE2_SPTR>(text.c_str()),
+        text.length(),
+        0,
+        0,
+        match_data,
+        nullptr
+    );
+    pcre2_match_data_free(match_data);
+    return rc >= 0;
+}
+
+bool RuleEngine::MatchPattern(void* compiled_pattern, const uint8_t* data, size_t len) const {
+    if (!compiled_pattern || !data || len == 0) {
+        return false;
+    }
+    pcre2_match_data* match_data = pcre2_match_data_create_from_pattern(static_cast<pcre2_code*>(compiled_pattern), nullptr);
+    int rc = pcre2_match(
+        static_cast<pcre2_code*>(compiled_pattern),
+        data,
+        len,
+        0,
+        0,
+        match_data,
+        nullptr
+    );
+    pcre2_match_data_free(match_data);
+    return rc >= 0;
 }

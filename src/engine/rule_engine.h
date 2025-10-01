@@ -130,7 +130,7 @@ public:
     size_t GetRuleCount(RuleLayer layer) const;
 
     // IP utilities (PUBLIC for external use)
-    static bool IsIPInRange(const std::string& ip, const Rule::IPRange& range);
+    static bool IsIPInRange(uint32_t ip, const Rule::IPRange& range);
     static uint32_t IPStringToUint32(const std::string& ip);
 
 protected:

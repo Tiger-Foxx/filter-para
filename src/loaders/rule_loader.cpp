@@ -11,23 +11,12 @@
 // STATIC LOOKUP TABLES
 // ============================================================
 const std::unordered_map<std::string, RuleType> RuleLoader::rule_type_map_ = {
-    // L3 Rules
-    {"ip_src_in", RuleType::IP_SRC_IN},
-    {"ip_dst_in", RuleType::IP_DST_IN},
-    {"ip_src_country", RuleType::IP_SRC_COUNTRY},
-    
-    // L4 Rules
-    {"tcp_dst_port", RuleType::TCP_DST_PORT},
-    {"tcp_dst_port_not_in", RuleType::TCP_DST_PORT_NOT_IN},
-    {"udp_dst_port", RuleType::UDP_DST_PORT},
-    {"tcp_flags", RuleType::TCP_FLAGS},
-    
-    // L7 Rules
-    {"http_uri_regex", RuleType::HTTP_URI_REGEX},
-    {"http_header_contains", RuleType::HTTP_HEADER_CONTAINS},
-    {"http_method", RuleType::HTTP_METHOD},
-    {"http_payload_regex", RuleType::HTTP_PAYLOAD_REGEX},
-    {"dns_query_contains", RuleType::DNS_QUERY_CONTAINS}
+    {"ip_range", RuleType::IP_RANGE},
+    {"port", RuleType::PORT},
+    {"protocol", RuleType::PROTOCOL},
+    {"pattern", RuleType::PATTERN},
+    {"geo", RuleType::GEO},
+    {"rate_limit", RuleType::RATE_LIMIT}
 };
 
 const std::unordered_map<std::string, RuleAction> RuleLoader::rule_action_map_ = {
@@ -206,37 +195,23 @@ bool RuleLoader::ValidateRule(const std::unique_ptr<Rule>& rule) {
     
     switch (rule->layer) {
         case RuleLayer::L3:
-            valid_combination = (rule->type == RuleType::IP_SRC_IN ||
-                               rule->type == RuleType::IP_DST_IN ||
-                               rule->type == RuleType::IP_SRC_COUNTRY);
+            valid_combination = (rule->type == RuleType::IP_RANGE ||
+                               rule->type == RuleType::GEO);
             break;
             
         case RuleLayer::L4:
-            valid_combination = (rule->type == RuleType::TCP_DST_PORT ||
-                               rule->type == RuleType::TCP_DST_PORT_NOT_IN ||
-                               rule->type == RuleType::UDP_DST_PORT ||
-                               rule->type == RuleType::TCP_FLAGS);
+            valid_combination = (rule->type == RuleType::PORT ||
+                               rule->type == RuleType::PROTOCOL);
             break;
             
         case RuleLayer::L7:
-            valid_combination = (rule->type == RuleType::HTTP_URI_REGEX ||
-                               rule->type == RuleType::HTTP_HEADER_CONTAINS ||
-                               rule->type == RuleType::HTTP_METHOD ||
-                               rule->type == RuleType::HTTP_PAYLOAD_REGEX ||
-                               rule->type == RuleType::DNS_QUERY_CONTAINS);
+            valid_combination = (rule->type == RuleType::PATTERN);
             break;
     }
     
     if (!valid_combination) {
         std::cerr << "⚠️  Warning: Rule " << rule->id 
                   << " has invalid type/layer combination" << std::endl;
-        return false;
-    }
-    
-    // Additional validation for specific rule types
-    if (rule->type == RuleType::HTTP_HEADER_CONTAINS && rule->field.empty()) {
-        std::cerr << "⚠️  Warning: Rule " << rule->id 
-                  << " (http_header_contains) missing 'field' parameter" << std::endl;
         return false;
     }
     
@@ -272,18 +247,12 @@ void RuleLoader::PrintRulesSummary(const std::unordered_map<RuleLayer, std::vect
         for (const auto& [type, count] : type_counts) {
             std::string type_name;
             switch (type) {
-                case RuleType::IP_SRC_IN: type_name = "IP Source"; break;
-                case RuleType::IP_DST_IN: type_name = "IP Destination"; break;
-                case RuleType::IP_SRC_COUNTRY: type_name = "IP Country"; break;
-                case RuleType::TCP_DST_PORT: type_name = "TCP Port"; break;
-                case RuleType::TCP_DST_PORT_NOT_IN: type_name = "TCP Port (exclude)"; break;
-                case RuleType::UDP_DST_PORT: type_name = "UDP Port"; break;
-                case RuleType::TCP_FLAGS: type_name = "TCP Flags"; break;
-                case RuleType::HTTP_URI_REGEX: type_name = "HTTP URI"; break;
-                case RuleType::HTTP_HEADER_CONTAINS: type_name = "HTTP Header"; break;
-                case RuleType::HTTP_METHOD: type_name = "HTTP Method"; break;
-                case RuleType::HTTP_PAYLOAD_REGEX: type_name = "HTTP Payload"; break;
-                case RuleType::DNS_QUERY_CONTAINS: type_name = "DNS Query"; break;
+                case RuleType::IP_RANGE: type_name = "IP Range"; break;
+                case RuleType::PORT: type_name = "Port"; break;
+                case RuleType::PROTOCOL: type_name = "Protocol"; break;
+                case RuleType::PATTERN: type_name = "Pattern"; break;
+                case RuleType::GEO: type_name = "GeoIP"; break;
+                case RuleType::RATE_LIMIT: type_name = "Rate Limit"; break;
             }
             std::cout << "     - " << type_name << ": " << count << std::endl;
         }
