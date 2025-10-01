@@ -20,10 +20,12 @@ struct nfgenmsg;
 struct nfq_data;
 
 // Forward declarations
-struct PacketData;
 class WorkerPool;
 class TCPReassembler;
 struct FilterResult;
+
+// Include PacketData definition (needed for PendingPacket member)
+#include "../engine/rule_engine.h"
 
 // ============================================================
 // PACKET HANDLER - NFQUEUE INTERFACE (SINGLE THREAD)
