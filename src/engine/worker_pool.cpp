@@ -18,9 +18,6 @@ class HybridRuleEngine : public RuleEngine {
 public:
     using RuleEngine::RuleEngine;
     
-    bool Initialize() override { return true; }
-    void Shutdown() override {}
-    
     FilterResult FilterPacket(const PacketData& packet) override {
         HighResTimer timer;
         
@@ -69,21 +66,21 @@ WorkerPool::WorkerPool(const std::unordered_map<RuleLayer, std::vector<std::uniq
 }
 
 WorkerPool::~WorkerPool() {
-    Shutdown();
+    Stop();
 }
 
 // ============================================================
-// INITIALIZATION
+// START / STOP
 // ============================================================
-bool WorkerPool::Initialize() {
+void WorkerPool::Start() {
     if (running_.load()) {
         std::cerr << "WorkerPool already running" << std::endl;
-        return false;
+        return;
     }
     
-    std::cout << "Initializing WorkerPool with " << num_workers_ << " workers..." << std::endl;
+    std::cout << "Starting WorkerPool with " << num_workers_ << " workers..." << std::endl;
     
-    // Resize vector to hold workers
+    // Resize worker vector
     workers_.resize(num_workers_);
     
     // Start worker threads
@@ -93,19 +90,15 @@ bool WorkerPool::Initialize() {
     }
     
     running_.store(true);
-    std::cout << "✅ WorkerPool initialized successfully" << std::endl;
-    return true;
+    std::cout << "✅ WorkerPool started successfully" << std::endl;
 }
 
-// ============================================================
-// SHUTDOWN
-// ============================================================
-void WorkerPool::Shutdown() {
+void WorkerPool::Stop() {
     if (!running_.load()) {
         return;
     }
     
-    std::cout << "Shutting down WorkerPool..." << std::endl;
+    std::cout << "Stopping WorkerPool..." << std::endl;
     running_.store(false);
     
     // Notify all workers
@@ -120,7 +113,7 @@ void WorkerPool::Shutdown() {
         }
     }
     
-    std::cout << "✅ WorkerPool shut down" << std::endl;
+    std::cout << "✅ WorkerPool stopped" << std::endl;
 }
 
 // ============================================================
@@ -128,13 +121,7 @@ void WorkerPool::Shutdown() {
 // ============================================================
 void WorkerPool::WorkerLoop(size_t worker_id) {
     auto& worker = workers_[worker_id];
-    HybridRuleEngine rule_engine(rules_by_layer_);  // ✅ Utilisation de la classe concrète
-    
-    // Initialize rule engine
-    if (!rule_engine.Initialize()) {
-        std::cerr << "Worker " << worker_id << " failed to initialize rule engine" << std::endl;
-        return;
-    }
+    HybridRuleEngine rule_engine(rules_by_layer_);
     
     std::cout << "Worker " << worker_id << " started" << std::endl;
     
@@ -190,7 +177,7 @@ void WorkerPool::WorkerLoop(size_t worker_id) {
             
             // Periodic cleanup
             if (worker.packets_processed.load() % 1000 == 0) {
-                worker.reassembler->Cleanup();
+                worker.reassembler->CleanupExpiredStreams();
             }
             
         } catch (const std::exception& e) {
@@ -198,14 +185,13 @@ void WorkerPool::WorkerLoop(size_t worker_id) {
         }
     }
     
-    rule_engine.Shutdown();
     std::cout << "Worker " << worker_id << " stopped" << std::endl;
 }
 
 // ============================================================
-// PACKET ENQUEUE
+// PACKET SUBMISSION
 // ============================================================
-void WorkerPool::EnqueuePacket(const PacketData& packet, std::function<void(FilterResult)> callback) {
+void WorkerPool::SubmitPacket(const PacketData& packet, std::function<void(FilterResult)> callback) {
     if (!running_.load()) {
         return;
     }
@@ -226,6 +212,7 @@ void WorkerPool::EnqueuePacket(const PacketData& packet, std::function<void(Filt
     }
     
     worker.queue_cv->notify_one();
+    total_dispatched_.fetch_add(1, std::memory_order_relaxed);
 }
 
 // ============================================================
@@ -262,12 +249,12 @@ void WorkerPool::SetWorkerAffinity(size_t worker_id) {
 // ============================================================
 WorkerPool::Stats WorkerPool::GetStats() const {
     Stats stats{};
-    stats.num_workers = num_workers_;  // ✅
+    stats.num_workers = num_workers_;
     stats.total_dispatched = total_dispatched_.load();
     stats.total_processed = 0;
     stats.total_dropped = 0;
     stats.total_accepted = 0;
-    stats.queue_overflows = queue_overflows_.load();  // ✅
+    stats.queue_overflows = queue_overflows_.load();
     
     for (const auto& worker : workers_) {
         uint64_t packets = worker.packets_processed.load();
@@ -275,14 +262,24 @@ WorkerPool::Stats WorkerPool::GetStats() const {
         uint64_t accepts = worker.packets_accepted.load();
         double total_time = worker.total_processing_time_ms.load();
         
-        stats.packets_per_worker.push_back(packets);  // ✅
-        stats.drops_per_worker.push_back(drops);      // ✅
-        stats.accepts_per_worker.push_back(accepts);  // ✅
-        stats.avg_time_per_worker.push_back(packets > 0 ? total_time / packets : 0.0);  // ✅
+        stats.packets_per_worker.push_back(packets);
+        stats.drops_per_worker.push_back(drops);
+        stats.accepts_per_worker.push_back(accepts);
+        stats.avg_time_per_worker.push_back(packets > 0 ? total_time / packets : 0.0);
         
         stats.total_processed += packets;
         stats.total_dropped += drops;
         stats.total_accepted += accepts;
+    }
+    
+    if (stats.total_processed > 0) {
+        double total_time = 0.0;
+        for (const auto& worker : workers_) {
+            total_time += worker.total_processing_time_ms.load();
+        }
+        stats.avg_processing_time_ms = total_time / stats.total_processed;
+    } else {
+        stats.avg_processing_time_ms = 0.0;
     }
     
     stats.load_variance = CalculateLoadVariance();
@@ -295,9 +292,12 @@ void WorkerPool::PrintStats() const {
     
     std::cout << "\n📊 WorkerPool Statistics:" << std::endl;
     std::cout << "   Total workers: " << stats.num_workers << std::endl;
-    std::cout << "   Total packets: " << stats.total_packets << std::endl;
-    std::cout << "   Total drops: " << stats.total_drops << std::endl;
+    std::cout << "   Total dispatched: " << stats.total_dispatched << std::endl;
+    std::cout << "   Total processed: " << stats.total_processed << std::endl;
+    std::cout << "   Total dropped: " << stats.total_dropped << std::endl;
     std::cout << "   Queue overflows: " << stats.queue_overflows << std::endl;
+    std::cout << "   Avg processing time: " << std::fixed << std::setprecision(2) 
+              << stats.avg_processing_time_ms << "ms" << std::endl;
     std::cout << "   Load variance: " << std::fixed << std::setprecision(2) 
               << stats.load_variance << std::endl;
     
@@ -310,25 +310,6 @@ void WorkerPool::PrintStats() const {
                   << stats.avg_time_per_worker[i] << "ms" << std::endl;
     }
 }
-
-// double WorkerPool::CalculateLoadVariance() const {
-//     if (workers_.empty()) return 0.0;
-    
-//     double mean = 0.0;
-//     for (const auto& worker : workers_) {
-//         mean += worker.packets_processed.load();
-//     }
-//     mean /= workers_.size();
-    
-//     double variance = 0.0;
-//     for (const auto& worker : workers_) {
-//         double diff = worker.packets_processed.load() - mean;
-//         variance += diff * diff;
-//     }
-//     variance /= workers_.size();
-    
-//     return std::sqrt(variance);
-// }
 
 double WorkerPool::CalculateLoadVariance() const {
     if (workers_.empty()) return 0.0;

@@ -1,7 +1,8 @@
-#pragma once
+#ifndef WORKER_POOL_H
+#define WORKER_POOL_H
 
 #include "rule_engine.h"
-#include "../handlers/tcp_reassembler.h"  // ✅ INCLUDE COMPLET (pas de forward declaration)
+#include "../handlers/tcp_reassembler.h"
 
 #include <vector>
 #include <queue>
@@ -20,7 +21,7 @@ public:
     // Constructor / Destructor
     explicit WorkerPool(
         const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules,
-        size_t num_workers = std::thread::hardware_concurrency()
+        size_t num_workers = 0
     );
     ~WorkerPool();
 
@@ -29,33 +30,33 @@ public:
     void Stop();
     void SubmitPacket(const PacketData& packet, std::function<void(FilterResult)> callback);
 
-    // Statistics structure (COMPLETE)
+    // Statistics
     struct Stats {
-        size_t num_workers;                      // ✅ ADDED
+        size_t num_workers;
         uint64_t total_dispatched;
         uint64_t total_processed;
         uint64_t total_dropped;
         uint64_t total_accepted;
-        uint64_t queue_overflows;                // ✅ ADDED
+        uint64_t queue_overflows;
         double avg_processing_time_ms;
-        double load_variance;                    // ✅ ADDED
-        std::vector<uint64_t> packets_per_worker;   // ✅ ADDED
-        std::vector<uint64_t> drops_per_worker;     // ✅ ADDED
-        std::vector<uint64_t> accepts_per_worker;   // ✅ ADDED
-        std::vector<double> avg_time_per_worker;    // ✅ ADDED
+        double load_variance;
+        std::vector<uint64_t> packets_per_worker;
+        std::vector<uint64_t> drops_per_worker;
+        std::vector<uint64_t> accepts_per_worker;
+        std::vector<double> avg_time_per_worker;
     };
 
     Stats GetStats() const;
     void PrintStats() const;
 
 private:
-    // Worker context structure
+    // Worker context
     struct WorkerContext {
         std::thread thread;
         std::queue<std::pair<PacketData, std::function<void(FilterResult)>>> queue;
         std::unique_ptr<std::mutex> queue_mutex;
         std::unique_ptr<std::condition_variable> queue_cv;
-        std::unique_ptr<TCPReassembler> reassembler;  // ✅ MAINTENANT COMPLET
+        std::unique_ptr<TCPReassembler> reassembler;
         std::atomic<uint64_t> packets_processed{0};
         std::atomic<uint64_t> packets_dropped{0};
         std::atomic<uint64_t> packets_accepted{0};
@@ -88,12 +89,14 @@ private:
     std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>> rules_by_layer_;
     std::atomic<bool> running_{false};
     std::atomic<uint64_t> total_dispatched_{0};
-    std::atomic<uint64_t> queue_overflows_{0};  // ✅ ADDED
+    std::atomic<uint64_t> queue_overflows_{0};
 
     static constexpr size_t MAX_QUEUE_SIZE = 10000;
 
-    // Hash dispatch (4-tuple)
+    // Hash dispatch
     size_t HashDispatch(const PacketData& packet) const;
     void WorkerLoop(size_t worker_id);
-    double CalculateLoadVariance() const;  // ✅ ADDED
+    double CalculateLoadVariance() const;
 };
+
+#endif // WORKER_POOL_H

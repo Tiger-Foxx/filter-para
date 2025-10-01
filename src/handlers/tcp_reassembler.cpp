@@ -63,7 +63,7 @@ std::shared_ptr<HTTPData> TCPReassembler::ProcessPacket(unsigned char* packet_da
     
     std::string payload(reinterpret_cast<char*>(packet_data + payload_offset), payload_len);
     
-    // Get or create stream
+    // Get or create stream (using std::string IPs from PacketData)
     TCPStream* stream = GetOrCreateStream(
         parsed_packet.src_ip, parsed_packet.src_port,
         parsed_packet.dst_ip, parsed_packet.dst_port

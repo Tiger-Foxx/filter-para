@@ -30,8 +30,8 @@ enum class RuleType {
 
 enum class RuleAction {
     ACCEPT,
-    DROP,
-    LOG
+    DROP
+    // REJECT supprimé car non utilisé dans le code actuel
 };
 
 // ============================================================
@@ -72,29 +72,26 @@ struct FilterResult {
     double processing_time_ms;
     RuleLayer layer;
 
-    FilterResult(RuleAction act, std::string id, double time, RuleLayer lyr)
+    FilterResult(RuleAction act, const std::string& id, double time, RuleLayer lyr)
         : action(act), rule_id(id), processing_time_ms(time), layer(lyr) {}
 };
 
 // ============================================================
-// PACKET DATA STRUCTURE
+// PACKET DATA STRUCTURE (COHÉRENTE)
 // ============================================================
 struct PacketData {
-    // L3 (Network layer)
-    uint32_t src_ip;
-    uint32_t dst_ip;
+    // L3 (Network layer) - UTILISER std::string pour IP
+    std::string src_ip;     // Format string "192.168.1.1"
+    std::string dst_ip;     // Format string "10.0.0.1"
     uint8_t protocol;
-    uint16_t total_length;
     
     // L4 (Transport layer)
     uint16_t src_port;
     uint16_t dst_port;
-    uint8_t tcp_flags;
+    uint8_t tcp_flags;      // Utiliser uint8_t au lieu de string
     uint32_t tcp_seq;
     
     // L7 (Application layer)
-    const uint8_t* payload;
-    size_t payload_len;
     std::string http_method;
     std::string http_uri;
     std::string http_host;
@@ -116,9 +113,7 @@ public:
     explicit RuleEngine(const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules);
     virtual ~RuleEngine() = default;
 
-    // Pure virtual methods (must be implemented by derived classes)
-    virtual bool Initialize() = 0;
-    virtual void Shutdown() = 0;
+    // Pure virtual methods
     virtual FilterResult FilterPacket(const PacketData& packet) = 0;
 
     // Statistics
@@ -129,12 +124,13 @@ public:
     size_t GetTotalRules() const;
     size_t GetRuleCount(RuleLayer layer) const;
 
-    // IP utilities (PUBLIC for external use)
+    // IP utilities (PUBLIC)
     static bool IsIPInRange(uint32_t ip, const Rule::IPRange& range);
     static uint32_t IPStringToUint32(const std::string& ip);
+    static std::string IPUint32ToString(uint32_t ip);
 
 protected:
-    // Rule storage (organized by layer for efficiency)
+    // Rule storage (organized by layer)
     std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>> rules_by_layer_;
 
     // Performance counters
@@ -146,7 +142,7 @@ protected:
     mutable std::atomic<uint64_t> l7_drops_{0};
     mutable std::atomic<double> total_processing_time_ms_{0.0};
 
-    // Rule evaluation methods (CONST for thread-safety)
+    // Rule evaluation methods (CONST)
     bool EvaluateRule(const Rule& rule, const PacketData& packet) const;
     bool EvaluateL3Rule(const Rule& rule, const PacketData& packet) const;
     bool EvaluateL4Rule(const Rule& rule, const PacketData& packet) const;

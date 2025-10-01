@@ -8,8 +8,13 @@
 #include <unordered_set>
 #include <mutex>
 #include <cstdint>
+#include <thread>
+#include <chrono>
+#include <libnetfilter_queue/libnetfilter_queue.h>
 
-// libnetfilter_queue
+// ============================================================
+// ORDRE CRITIQUE : libnetfilter_queue en PREMIER
+// ============================================================
 extern "C" {
     #include <libnetfilter_queue/libnetfilter_queue.h>
 }
@@ -21,7 +26,7 @@ class TCPReassembler;
 struct FilterResult;
 
 // ============================================================
-// PACKET HANDLER - NFQUEUE INTERFACE + HASH DISPATCH
+// PACKET HANDLER - NFQUEUE INTERFACE (SINGLE THREAD)
 // ============================================================
 class PacketHandler {
 public:
@@ -64,23 +69,23 @@ private:
     struct nfq_q_handle* queue_handle_;
     int netlink_fd_;
     
-    // TCP Reassembler (per-handler instance for single-threaded mode)
+    // TCP Reassembler
     std::unique_ptr<TCPReassembler> tcp_reassembler_;
     
-    // Callback for packet processing
+    // Callback
     PacketCallback packet_callback_;
     
     // Running state
     std::atomic<bool> running_{false};
     
-    // Connection tracking for efficiency
+    // Connection tracking
     std::unordered_set<uint64_t> blocked_connections_;
     mutable std::mutex connections_mutex_;
     
     // HTTP ports for reassembly detection
     std::unordered_set<uint16_t> http_ports_ = {80, 443, 8080, 8443, 8000, 3000};
     
-    // Statistics (atomic for thread-safety)
+    // Statistics (atomic)
     std::atomic<uint64_t> total_packets_{0};
     std::atomic<uint64_t> dropped_packets_{0};
     std::atomic<uint64_t> accepted_packets_{0};

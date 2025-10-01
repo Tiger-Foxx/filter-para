@@ -78,21 +78,18 @@ bool TigerSystem::Initialize() {
     // Initialize worker pool
     std::cout << "\n🔧 Initializing worker pool..." << std::endl;
     worker_pool_ = std::make_unique<WorkerPool>(rules_by_layer, num_workers_);
+    worker_pool_->Start();
     
-    if (!worker_pool_->Initialize()) {
-        std::cerr << "❌ Error: Failed to initialize worker pool" << std::endl;
+    // Initialize packet handler (dispatches to worker pool)
+    std::cout << "🔧 Initializing packet handler..." << std::endl;
+    packet_handler_ = std::make_unique<PacketHandler>(
+        queue_num_, nullptr, debug_mode_
+    );
+    
+    if (!packet_handler_->Initialize()) {
+        std::cerr << "❌ Error: Failed to initialize packet handler" << std::endl;
         return false;
     }
-    
-    // Initialize packet handler (will dispatch to worker pool)
-    std::cout << "🔧 Initializing packet handler..." << std::endl;
-    
-    // Create a dummy RuleEngine for PacketHandler (it will use WorkerPool instead)
-    // NOTE: In real implementation, we'd refactor PacketHandler to work with WorkerPool directly
-    // For now, we keep the interface but the actual filtering happens in workers
-    
-    // Simplified: PacketHandler will just parse and dispatch to workers
-    // The RuleEngine parameter is not used in hybrid mode
     
     std::cout << "\n✅ Tiger-Fox System initialized successfully!" << std::endl;
     std::cout << "   Process PID: " << process_pid_ << std::endl;
@@ -107,7 +104,7 @@ bool TigerSystem::Initialize() {
 // RUN SYSTEM
 // ============================================================
 void TigerSystem::Run() {
-    if (!worker_pool_) {
+    if (!worker_pool_ || !packet_handler_) {
         std::cerr << "❌ Error: System not initialized" << std::endl;
         return;
     }
@@ -121,7 +118,17 @@ void TigerSystem::Run() {
     std::cout << "🚀 Tiger-Fox is now running!" << std::endl;
     std::cout << "   Press Ctrl+C to stop\n" << std::endl;
     
-    // Main loop - just keep system alive and print stats periodically
+    // Start packet handler callback
+    auto packet_callback = [this](bool dropped) {
+        // Callback optionnel pour traitement supplémentaire
+    };
+    
+    // Main packet processing loop
+    std::thread packet_thread([this, packet_callback]() {
+        packet_handler_->Start(packet_callback);
+    });
+    
+    // Stats monitoring loop
     auto last_stats_time = std::chrono::steady_clock::now();
     
     while (running_.load(std::memory_order_acquire)) {
@@ -138,6 +145,14 @@ void TigerSystem::Run() {
     }
     
     std::cout << "\n🛑 Shutting down Tiger-Fox..." << std::endl;
+    
+    // Stop packet handler
+    packet_handler_->Stop();
+    
+    // Wait for packet thread
+    if (packet_thread.joinable()) {
+        packet_thread.join();
+    }
 }
 
 // ============================================================
@@ -154,7 +169,7 @@ void TigerSystem::Shutdown() {
     
     // Shutdown worker pool
     if (worker_pool_) {
-        worker_pool_->Shutdown();
+        worker_pool_->Stop();
         worker_pool_.reset();
     }
     
@@ -296,17 +311,18 @@ void TigerSystem::PrintSystemInfo() const {
 // STATISTICS
 // ============================================================
 void TigerSystem::PrintStats() const {
-    if (!worker_pool_) {
+    if (!worker_pool_ || !packet_handler_) {
         return;
     }
     
-    auto stats = worker_pool_->GetStats();
+    auto worker_stats = worker_pool_->GetStats();
+    auto handler_stats = packet_handler_->GetStats();
     
     std::cout << "\n📊 ===== Real-Time Statistics =====" << std::endl;
-    std::cout << "   Total packets: " << stats.total_packets << std::endl;
-    std::cout << "   Dropped: " << stats.total_dropped << std::endl;
-    std::cout << "   Accepted: " << stats.total_accepted << std::endl;
-    std::cout << "   Avg processing time: " << stats.avg_processing_time_ms << "ms" << std::endl;
+    std::cout << "   Total packets: " << handler_stats.total_packets << std::endl;
+    std::cout << "   Dropped: " << handler_stats.dropped_packets << std::endl;
+    std::cout << "   Accepted: " << handler_stats.accepted_packets << std::endl;
+    std::cout << "   Workers active: " << worker_stats.num_workers << std::endl;
     std::cout << "===================================\n" << std::endl;
 }
 
@@ -319,6 +335,10 @@ void TigerSystem::PrintFinalReport() const {
     
     if (worker_pool_) {
         worker_pool_->PrintStats();
+    }
+    
+    if (packet_handler_) {
+        packet_handler_->PrintStats();
     }
     
     std::cout << "\n";

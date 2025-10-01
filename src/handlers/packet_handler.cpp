@@ -6,6 +6,7 @@
 #include <iostream>
 #include <cstring>
 #include <unistd.h>
+#include <iomanip>
 
 // ============================================================
 // ORDRE CRITIQUE : Linux headers AVANT toute chose
@@ -15,10 +16,8 @@
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
+#include <arpa/inet.h>
 #include <errno.h>
-
-// NE PAS INCLURE <netinet/in.h> ni <arpa/inet.h> ici
-// Les structures sont déjà définies par <linux/in.h> (via netfilter.h)
 
 // ============================================================
 // CALLBACK C POUR NFQUEUE
@@ -32,12 +31,17 @@ static int nfq_callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
 // ============================================================
 // CONSTRUCTOR / DESTRUCTOR
 // ============================================================
-PacketHandler::PacketHandler(uint16_t queue_num, size_t max_connections)
+PacketHandler::PacketHandler(int queue_num, RuleEngine* rule_engine, bool debug_mode)
     : queue_num_(queue_num),
-      max_connections_(max_connections),
+      rule_engine_(rule_engine),
+      debug_mode_(debug_mode),
       nfq_handle_(nullptr),
-      nfq_queue_(nullptr),
-      running_(false) {}
+      queue_handle_(nullptr),
+      netlink_fd_(-1),
+      tcp_reassembler_(std::make_unique<TCPReassembler>()) {
+    
+    LOG_DEBUG(debug_mode_, "PacketHandler initialized for queue " + std::to_string(queue_num_));
+}
 
 PacketHandler::~PacketHandler() {
     Stop();
@@ -67,24 +71,31 @@ bool PacketHandler::Initialize() {
     }
 
     // Create queue
-    nfq_queue_ = nfq_create_queue(nfq_handle_, queue_num_, &nfq_callback, this);
-    if (!nfq_queue_) {
+    queue_handle_ = nfq_create_queue(nfq_handle_, queue_num_, nfq_callback, this);
+    if (!queue_handle_) {
         std::cerr << "❌ ERROR: nfq_create_queue() failed for queue " << queue_num_ << std::endl;
         nfq_close(nfq_handle_);
         return false;
     }
 
     // Set copy mode (full packet)
-    if (nfq_set_mode(nfq_queue_, NFQNL_COPY_PACKET, 0xFFFF) < 0) {
+    if (nfq_set_mode(queue_handle_, NFQNL_COPY_PACKET, 0xFFFF) < 0) {
         std::cerr << "❌ ERROR: nfq_set_mode() failed" << std::endl;
-        nfq_destroy_queue(nfq_queue_);
+        nfq_destroy_queue(queue_handle_);
         nfq_close(nfq_handle_);
         return false;
     }
 
     // Set queue length
-    if (nfq_set_queue_maxlen(nfq_queue_, 10000) < 0) {
+    if (nfq_set_queue_maxlen(queue_handle_, 10000) < 0) {
         std::cerr << "⚠️  WARNING: nfq_set_queue_maxlen() failed" << std::endl;
+    }
+
+    // Get netlink FD
+    netlink_fd_ = nfq_fd(nfq_handle_);
+    if (netlink_fd_ < 0) {
+        std::cerr << "❌ ERROR: nfq_fd() failed" << std::endl;
+        return false;
     }
 
     std::cout << "✅ PacketHandler initialized (queue " << queue_num_ << ")" << std::endl;
@@ -92,29 +103,53 @@ bool PacketHandler::Initialize() {
 }
 
 // ============================================================
-// START / STOP
+// START
 // ============================================================
-void PacketHandler::Start() {
-    if (running_.exchange(true)) {
-        return;  // Already running
+void PacketHandler::Start(PacketCallback callback) {
+    if (!nfq_handle_ || !queue_handle_) {
+        std::cerr << "❌ ERROR: PacketHandler not initialized" << std::endl;
+        return;
     }
 
-    processing_thread_ = std::thread(&PacketHandler::ProcessLoop, this);
-    std::cout << "🚀 PacketHandler processing thread started" << std::endl;
+    packet_callback_ = callback;
+    running_.store(true);
+
+    std::cout << "🚀 PacketHandler listening on queue " << queue_num_ << std::endl;
+
+    char buffer[65536] __attribute__((aligned));
+    
+    while (running_.load()) {
+        int len = recv(netlink_fd_, buffer, sizeof(buffer), 0);
+        
+        if (len < 0) {
+            if (errno == ENOBUFS) {
+                std::cerr << "⚠️  WARNING: Packet buffer overrun" << std::endl;
+                continue;
+            }
+            if (errno == EINTR || !running_.load()) {
+                break;
+            }
+            std::cerr << "❌ ERROR: recv() failed: " << strerror(errno) << std::endl;
+            break;
+        }
+
+        if (len == 0) continue;
+
+        nfq_handle_packet(nfq_handle_, buffer, len);
+    }
+
+    std::cout << "🛑 PacketHandler stopped" << std::endl;
 }
 
+// ============================================================
+// STOP
+// ============================================================
 void PacketHandler::Stop() {
-    if (!running_.exchange(false)) {
-        return;  // Not running
-    }
+    running_.store(false);
 
-    if (processing_thread_.joinable()) {
-        processing_thread_.join();
-    }
-
-    if (nfq_queue_) {
-        nfq_destroy_queue(nfq_queue_);
-        nfq_queue_ = nullptr;
+    if (queue_handle_) {
+        nfq_destroy_queue(queue_handle_);
+        queue_handle_ = nullptr;
     }
 
     if (nfq_handle_) {
@@ -122,53 +157,17 @@ void PacketHandler::Stop() {
         nfq_handle_ = nullptr;
     }
 
-    std::cout << "🛑 PacketHandler stopped" << std::endl;
-}
-
-// ============================================================
-// PROCESS LOOP
-// ============================================================
-void PacketHandler::ProcessLoop() {
-    int fd = nfq_fd(nfq_handle_);
-    char buf[65536];
-
-    std::cout << "📡 PacketHandler listening on fd=" << fd << std::endl;
-
-    while (running_) {
-        fd_set read_fds;
-        FD_ZERO(&read_fds);
-        FD_SET(fd, &read_fds);
-
-        struct timeval tv;
-        tv.tv_sec = 1;
-        tv.tv_usec = 0;
-
-        int ret = select(fd + 1, &read_fds, nullptr, nullptr, &tv);
-        if (ret < 0) {
-            if (errno == EINTR) continue;
-            std::cerr << "❌ select() error: " << strerror(errno) << std::endl;
-            break;
-        }
-
-        if (ret == 0) continue;  // Timeout
-
-        int len = recv(fd, buf, sizeof(buf), 0);
-        if (len < 0) {
-            if (errno == ENOBUFS) {
-                packet_buffer_full_.fetch_add(1, std::memory_order_relaxed);
-                continue;
-            }
-            if (errno == EINTR) continue;
-            std::cerr << "❌ recv() error: " << strerror(errno) << std::endl;
-            break;
-        }
-
-        nfq_handle_packet(nfq_handle_, buf, len);
+    if (tcp_reassembler_) {
+        tcp_reassembler_->Cleanup();
     }
 
-    std::cout << "📡 PacketHandler loop exited" << std::endl;
-}
+    {
+        std::lock_guard<std::mutex> lock(connections_mutex_);
+        blocked_connections_.clear();
+    }
 
+    std::cout << "🧹 PacketHandler cleaned up" << std::endl;
+}
 
 // ============================================================
 // MAIN PACKET HANDLING FUNCTION
@@ -240,13 +239,13 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
             
             LOG_DEBUG(debug_mode_, "DROPPED packet " + std::to_string(packet_id) + 
                      " by rule " + result.rule_id + 
-                     " in " + std::to_string(result.decision_time_ms) + "ms");
+                     " in " + std::to_string(result.processing_time_ms) + "ms");
         } else {
             accepted_packets_.fetch_add(1, std::memory_order_relaxed);
             if (packet_callback_) packet_callback_(false);
             
             LOG_DEBUG(debug_mode_, "ACCEPTED packet " + std::to_string(packet_id) + 
-                     " in " + std::to_string(result.decision_time_ms) + "ms");
+                     " in " + std::to_string(result.processing_time_ms) + "ms");
         }
 
         // Log progress every 1000 packets
@@ -284,18 +283,16 @@ bool PacketHandler::ParsePacket(unsigned char* data, int len, PacketData& packet
 
     struct iphdr* ip_header = (struct iphdr*)data;
     
-    // Extract L3 information
-    char src_ip[INET_ADDRSTRLEN];
-    char dst_ip[INET_ADDRSTRLEN];
+    // Extract L3 information (CORRECTION: utiliser std::string)
+    char src_ip_buf[INET_ADDRSTRLEN];
+    char dst_ip_buf[INET_ADDRSTRLEN];
     
-    inet_ntop(AF_INET, &ip_header->saddr, src_ip, INET_ADDRSTRLEN);
-    inet_ntop(AF_INET, &ip_header->daddr, dst_ip, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &ip_header->saddr, src_ip_buf, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET, &ip_header->daddr, dst_ip_buf, INET_ADDRSTRLEN);
     
-    packet.src_ip = std::string(src_ip);
-    packet.dst_ip = std::string(dst_ip);
+    packet.src_ip = std::string(src_ip_buf);
+    packet.dst_ip = std::string(dst_ip_buf);
     packet.protocol = ip_header->protocol;
-    packet.ip_length = ntohs(ip_header->tot_len);
-    packet.packet_size = len;
     packet.timestamp_ns = std::chrono::high_resolution_clock::now().time_since_epoch().count();
 
     // Extract L4 information
@@ -313,19 +310,16 @@ bool PacketHandler::ParsePacket(unsigned char* data, int len, PacketData& packet
         
         packet.src_port = ntohs(tcp_header->source);
         packet.dst_port = ntohs(tcp_header->dest);
-        packet.seq_num = ntohl(tcp_header->seq);
-        packet.ack_num = ntohl(tcp_header->ack_seq);
+        packet.tcp_seq = ntohl(tcp_header->seq);
         
-        // TCP flags
-        std::string flags;
-        if (tcp_header->syn) flags += "SYN ";
-        if (tcp_header->ack) flags += "ACK ";
-        if (tcp_header->fin) flags += "FIN ";
-        if (tcp_header->rst) flags += "RST ";
-        if (tcp_header->psh) flags += "PSH ";
-        if (tcp_header->urg) flags += "URG ";
-        
-        packet.tcp_flags = flags;
+        // TCP flags (utiliser uint8_t, pas string)
+        packet.tcp_flags = 0;
+        if (tcp_header->syn) packet.tcp_flags |= 0x02;
+        if (tcp_header->ack) packet.tcp_flags |= 0x10;
+        if (tcp_header->fin) packet.tcp_flags |= 0x01;
+        if (tcp_header->rst) packet.tcp_flags |= 0x04;
+        if (tcp_header->psh) packet.tcp_flags |= 0x08;
+        if (tcp_header->urg) packet.tcp_flags |= 0x20;
         
     } else if (ip_header->protocol == IPPROTO_UDP) {
         if (len < ip_header_len + sizeof(struct udphdr)) {
@@ -365,12 +359,8 @@ void PacketHandler::HandleTCPReassembly(unsigned char* data, int len, PacketData
         // Update packet with HTTP L7 data
         packet.http_method = http_data->method;
         packet.http_uri = http_data->uri;
-        packet.http_version = http_data->version;
-        packet.http_headers = http_data->headers;
-        packet.http_payload = http_data->payload;
-        packet.user_agent = http_data->user_agent;
-        packet.host = http_data->host;
-        packet.is_reassembled = true;
+        packet.http_host = http_data->host;
+        packet.http_user_agent = http_data->user_agent;
         
         LOG_DEBUG(debug_mode_, "Successfully reassembled HTTP request: " + 
                  http_data->method + " " + http_data->uri);
@@ -386,10 +376,15 @@ uint64_t PacketHandler::GetConnectionKey(const PacketData& packet) {
     }
 
     // Create a hash-based connection key (4-tuple)
-    std::hash<std::string> hasher;
-    std::string conn_str = packet.src_ip + ":" + std::to_string(packet.src_port) + 
-                          "->" + packet.dst_ip + ":" + std::to_string(packet.dst_port);
-    return hasher(conn_str);
+    // CORRECTION: Convertir src_ip/dst_ip en uint32_t pour hash
+    uint32_t src_ip_int = RuleEngine::IPStringToUint32(packet.src_ip);
+    uint32_t dst_ip_int = RuleEngine::IPStringToUint32(packet.dst_ip);
+    
+    std::hash<uint64_t> hasher;
+    uint64_t key1 = (static_cast<uint64_t>(src_ip_int) << 32) | packet.src_port;
+    uint64_t key2 = (static_cast<uint64_t>(dst_ip_int) << 32) | packet.dst_port;
+    
+    return hasher(key1 ^ key2);
 }
 
 bool PacketHandler::IsConnectionBlocked(uint64_t connection_key) {

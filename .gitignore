@@ -8,6 +8,7 @@ cmake-build-*/
 *.a
 errors.txt
 tiger-fox
+notes.txt
 
 # CMake
 CMakeCache.txt
