@@ -210,13 +210,35 @@ bool RuleEngine::EvaluateL4Rule(const Rule& rule, const PacketData& packet) cons
 bool RuleEngine::EvaluateL7Rule(const Rule& rule, const PacketData& packet) const {
     switch (rule.type) {
         case RuleType::PATTERN: {
+            // Si pas de données HTTP, pas besoin d'évaluer
+            if (packet.http_method.empty() && packet.http_uri.empty()) {
+                return false;
+            }
+            
             for (auto* pattern : rule.compiled_patterns_) {
-                if (rule.field == "http.uri") {
-                    if (MatchPattern(pattern, packet.http_uri)) return true;
-                } else if (rule.field == "http.method") {
-                    if (MatchPattern(pattern, packet.http_method)) return true;
-                } else if (rule.field == "http.user_agent") {
-                    if (MatchPattern(pattern, packet.http_user_agent)) return true;
+                // Déterminer quel champ HTTP vérifier selon le champ de la règle
+                if (rule.field == "user-agent" || rule.field == "http.user_agent") {
+                    if (MatchPattern(pattern, packet.http_user_agent)) {
+                        return true;
+                    }
+                } else if (rule.field == "host" || rule.field == "http.host") {
+                    if (MatchPattern(pattern, packet.http_host)) {
+                        return true;
+                    }
+                } else if (rule.field == "method" || rule.field == "http.method") {
+                    if (MatchPattern(pattern, packet.http_method)) {
+                        return true;
+                    }
+                } else {
+                    // Par défaut, vérifier l'URI HTTP (pour http_uri_regex, http_uri_contains)
+                    if (MatchPattern(pattern, packet.http_uri)) {
+                        return true;
+                    }
+                    
+                    // Vérifier aussi le user-agent par défaut
+                    if (MatchPattern(pattern, packet.http_user_agent)) {
+                        return true;
+                    }
                 }
             }
             return false;
