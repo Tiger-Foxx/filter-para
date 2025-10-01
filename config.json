@@ -13,7 +13,7 @@
     "decision_cache_size": 10000
   },
   "rules": {
-    "file": "rules/tiger_rules.json",
+    "file": "rules/example_rules.json",
     "precompile_patterns": true,
     "enable_rule_cache": true
   },

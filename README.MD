@@ -1178,7 +1178,7 @@ void PrintFinalReport() const {
 **Argument Parsing:**
 ```cpp
 struct CommandLineArgs {
-    std::string rules_file = "rules/tiger_rules.json";
+    std::string rules_file = "rules/example_rules.json";
     int queue_num = 0;
     size_t num_workers = 0;  // 0 = auto-detect
     bool debug_mode = false;
@@ -1217,7 +1217,7 @@ CommandLineArgs ParseArguments(int argc, char* argv[]) {
 Usage: tiger-fox [OPTIONS]
 
 Options:
-  -r, --rules FILE       Rules file path (default: rules/tiger_rules.json)
+  -r, --rules FILE       Rules file path (default: rules/example_rules.json)
   -q, --queue NUM        NFQUEUE number (default: 0)
   -w, --workers NUM      Number of workers (default: auto-detect CPU cores)
   -v, --verbose          Enable debug/verbose mode
@@ -1636,7 +1636,7 @@ wrk -t 12 -c 400 -d 30s --latency http://10.10.2.20/
 **Test 14: Tiger-Fox Performance**
 ```bash
 # On filter
-sudo ./build/tiger-fox --workers 8 --rules rules/tiger_rules.json
+sudo ./build/tiger-fox --workers 8 --rules rules/example_rules.json
 
 # On injector
 wrk -t 12 -c 400 -d 30s --latency http://10.10.2.20/
@@ -1650,7 +1650,7 @@ wrk -t 12 -c 400 -d 30s --latency http://10.10.2.20/
 # Test with different worker counts
 for workers in 1 2 4 8 16; do
     echo "Testing with $workers workers"
-    sudo ./build/tiger-fox --workers $workers --rules rules/tiger_rules.json &
+    sudo ./build/tiger-fox --workers $workers --rules rules/example_rules.json &
     PID=$!
     sleep 5
     
@@ -1669,7 +1669,7 @@ done
 # Test with different rule counts
 for rules in 10 50 100 300 600; do
     # Generate subset of rules
-    head -n $rules rules/tiger_rules.json > rules/subset_${rules}.json
+    head -n $rules rules/example_rules.json > rules/subset_${rules}.json
     
     sudo ./build/tiger-fox --workers 8 --rules rules/subset_${rules}.json &
     PID=$!
@@ -1713,7 +1713,7 @@ done
 ```bash
 # Run Tiger-Fox with valgrind
 sudo valgrind --leak-check=full --show-leak-kinds=all \
-    ./build/tiger-fox --workers 4 --rules rules/tiger_rules.json &
+    ./build/tiger-fox --workers 4 --rules rules/example_rules.json &
 PID=$!
 
 # Generate traffic
@@ -1727,7 +1727,7 @@ sudo kill -SIGINT $PID
 **Test 19: Long-Duration Stability**
 ```bash
 # Run for 24 hours
-sudo ./build/tiger-fox --workers 8 --rules rules/tiger_rules.json &
+sudo ./build/tiger-fox --workers 8 --rules rules/example_rules.json &
 PID=$!
 
 # Monitor memory and CPU usage
@@ -1741,7 +1741,7 @@ done
 **Test 20: Queue Overflow Handling**
 ```bash
 # Generate massive traffic burst
-sudo ./build/tiger-fox --workers 2 --rules rules/tiger_rules.json --verbose &
+sudo ./build/tiger-fox --workers 2 --rules rules/example_rules.json --verbose &
 PID=$!
 
 # Flood with requests (overwhelming workers)
@@ -1759,7 +1759,7 @@ sudo kill -SIGINT $PID
 **Test 21: Concurrent Attack Simulation**
 ```bash
 # Run multiple attack types simultaneously
-sudo ./build/tiger-fox --workers 8 --rules rules/tiger_rules.json &
+sudo ./build/tiger-fox --workers 8 --rules rules/example_rules.json &
 PID=$!
 
 # On injector, run multiple attack scripts in parallel
@@ -1876,7 +1876,7 @@ for count in 10 50 100 300 600 1000 2000; do
     # Generate subset of rules
     python3 -c "
 import json
-with open('rules/tiger_rules.json') as f:
+with open('rules/example_rules.json') as f:
     data = json.load(f)
     data['rules'] = data['rules'][:$count]
     with open('rules/test_${count}.json', 'w') as out:
@@ -1908,7 +1908,7 @@ python3 analyze_scaling.py results_*_rules.txt
 for workers in 1 2 4 8 16 32; do
     echo "Testing with $workers workers..."
     
-    sudo ./build/tiger-fox --workers $workers --rules rules/tiger_rules.json &
+    sudo ./build/tiger-fox --workers $workers --rules rules/example_rules.json &
     PID=$!
     sleep 5
     
@@ -1929,7 +1929,7 @@ done
 **Test 28: Latency Under Load**
 ```bash
 # Measure latency percentiles under increasing load
-sudo ./build/tiger-fox --workers 8 --rules rules/tiger_rules.json &
+sudo ./build/tiger-fox --workers 8 --rules rules/example_rules.json &
 PID=$!
 sleep 5
 
@@ -1954,7 +1954,7 @@ sudo kill -SIGINT $PID
 **Test 29: IPv6 Traffic Handling**
 ```bash
 # Test with IPv6 packets (if supported)
-sudo ./build/tiger-fox --workers 4 --rules rules/tiger_rules.json &
+sudo ./build/tiger-fox --workers 4 --rules rules/example_rules.json &
 PID=$!
 
 # From injector (if IPv6 configured)
@@ -1968,7 +1968,7 @@ sudo kill -SIGINT $PID
 **Test 30: Non-HTTP Traffic Handling**
 ```bash
 # Test with mixed traffic (HTTP + SSH + DNS + ICMP)
-sudo ./build/tiger-fox --workers 4 --rules rules/tiger_rules.json &
+sudo ./build/tiger-fox --workers 4 --rules rules/example_rules.json &
 PID=$!
 
 # HTTP traffic
@@ -2431,7 +2431,7 @@ curl http://localhost/
 
 ```bash
 # On filter machine
-sudo ./build/tiger-fox --workers 8 --rules rules/tiger_rules.json --verbose
+sudo ./build/tiger-fox --workers 8 --rules rules/example_rules.json --verbose
 
 # Expected output:
 # 🐯 ========================================== 🦊
@@ -2507,7 +2507,7 @@ wrk -t 12 -c 400 -d 30s --latency http://10.10.2.20/
 
 ```bash
 # On filter machine, restart Tiger-Fox
-sudo ./build/tiger-fox --workers 8 --rules rules/tiger_rules.json
+sudo ./build/tiger-fox --workers 8 --rules rules/example_rules.json
 
 # On injector machine, run same test
 wrk -t 12 -c 400 -d 30s --latency http://10.10.2.20/

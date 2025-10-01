@@ -10,7 +10,7 @@
 // COMMAND-LINE ARGUMENTS PARSING
 // ============================================================
 struct CommandLineArgs {
-    std::string rules_file = "rules/tiger_rules.json";
+    std::string rules_file = "rules/example_rules.json";
     int queue_num = 0;
     size_t num_workers = 0;  // 0 = auto-detect
     bool debug_mode = false;
@@ -27,7 +27,7 @@ void PrintUsage(const char* program_name) {
     std::cout << "Usage: " << program_name << " [OPTIONS]\n";
     std::cout << "\n";
     std::cout << "Options:\n";
-    std::cout << "  -r, --rules FILE       Rules file path (default: rules/tiger_rules.json)\n";
+    std::cout << "  -r, --rules FILE       Rules file path (default: rules/example_rules.json)\n";
     std::cout << "  -q, --queue NUM        NFQUEUE number (default: 0)\n";
     std::cout << "  -w, --workers NUM      Number of workers (default: auto-detect CPU cores)\n";
     std::cout << "  -v, --verbose          Enable debug/verbose mode\n";
