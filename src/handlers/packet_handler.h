@@ -10,18 +10,18 @@
 #include <cstdint>
 #include <thread>
 #include <chrono>
-#include <libnetfilter_queue/libnetfilter_queue.h>
 
 // ============================================================
-// ORDRE CRITIQUE : libnetfilter_queue en PREMIER
+// Forward declaration des types NFQUEUE (évite include complet)
 // ============================================================
-extern "C" {
-    #include <libnetfilter_queue/libnetfilter_queue.h>
-}
+struct nfq_handle;
+struct nfq_q_handle;
+struct nfgenmsg;
+struct nfq_data;
 
 // Forward declarations
 struct PacketData;
-class RuleEngine;
+class WorkerPool;
 class TCPReassembler;
 struct FilterResult;
 
@@ -33,7 +33,7 @@ public:
     // Callback type for packet processing result
     using PacketCallback = std::function<void(bool dropped)>;
     
-    explicit PacketHandler(int queue_num, RuleEngine* rule_engine, bool debug_mode = false);
+    explicit PacketHandler(int queue_num, WorkerPool* worker_pool, bool debug_mode = false);
     ~PacketHandler();
     
     // Lifecycle management
@@ -61,7 +61,7 @@ public:
 private:
     // NFQUEUE configuration
     int queue_num_;
-    RuleEngine* rule_engine_;
+    WorkerPool* worker_pool_;
     bool debug_mode_;
     
     // NFQUEUE handles

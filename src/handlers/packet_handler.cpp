@@ -1,6 +1,7 @@
 #include "packet_handler.h"
 #include "tcp_reassembler.h"
 #include "../engine/rule_engine.h"
+#include "../engine/worker_pool.h"
 #include "../utils.h"
 
 #include <iostream>
@@ -8,22 +9,25 @@
 #include <unistd.h>
 #include <iomanip>
 #include <errno.h>
+#include <thread>
+#include <chrono>
+#include <atomic>
 
 // ============================================================
-// ✅ ORDRE CORRECT : libnetfilter_queue EN PREMIER
+// ORDRE CRITIQUE : Headers réseau POSIX/glibc d'abord
+// ============================================================
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <netinet/tcp.h>
+#include <netinet/udp.h>
+#include <arpa/inet.h>
+
+// ============================================================
+// PUIS libnetfilter_queue (évite conflits avec linux/in.h)
 // ============================================================
 extern "C" {
     #include <libnetfilter_queue/libnetfilter_queue.h>
-    #include <linux/netfilter.h>
-    #include <linux/ip.h>
-    #include <linux/tcp.h>
-    #include <linux/udp.h>
 }
-
-// ============================================================
-// PUIS glibc headers (APRÈS linux/ pour éviter conflits)
-// ============================================================
-#include <arpa/inet.h>
 
 // ============================================================
 // CALLBACK C POUR NFQUEUE
@@ -37,9 +41,9 @@ static int nfq_packet_callback(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
 // ============================================================
 // CONSTRUCTOR / DESTRUCTOR
 // ============================================================
-PacketHandler::PacketHandler(int queue_num, RuleEngine* rule_engine, bool debug_mode)
+PacketHandler::PacketHandler(int queue_num, WorkerPool* worker_pool, bool debug_mode)
     : queue_num_(queue_num),
-      rule_engine_(rule_engine),
+      worker_pool_(worker_pool),
       debug_mode_(debug_mode),
       nfq_handle_(nullptr),
       queue_handle_(nullptr),
@@ -215,7 +219,29 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
             HandleTCPReassembly(packet_data, packet_len, parsed_packet);
         }
 
-        FilterResult result = rule_engine_->FilterPacket(parsed_packet);
+        // Soumettre le paquet au WorkerPool et attendre le résultat (synchrone)
+        // Note: Pour une vraie architecture asynchrone, il faudrait un système de queuing
+        // plus sophistiqué. Pour l'instant, on fait un dispatch synchrone.
+        FilterResult result(RuleAction::ACCEPT, "pending", 0.0, RuleLayer::L3);
+        std::atomic<bool> result_ready{false};
+        
+        worker_pool_->SubmitPacket(parsed_packet, [&result, &result_ready](FilterResult r) {
+            result = r;
+            result_ready.store(true, std::memory_order_release);
+        });
+        
+        // Attendre le résultat (avec timeout de sécurité)
+        auto start_wait = std::chrono::steady_clock::now();
+        while (!result_ready.load(std::memory_order_acquire)) {
+            std::this_thread::sleep_for(std::chrono::microseconds(10));
+            
+            auto elapsed = std::chrono::steady_clock::now() - start_wait;
+            if (elapsed > std::chrono::milliseconds(100)) {
+                // Timeout - accepter par défaut
+                LOG_DEBUG(debug_mode_, "WARNING: Worker timeout for packet " + std::to_string(packet_id));
+                break;
+            }
+        }
         
         uint32_t verdict = NF_ACCEPT;
         if (result.action == RuleAction::DROP) {
@@ -238,6 +264,8 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
             LOG_DEBUG(debug_mode_, "ACCEPTED packet " + std::to_string(packet_id) + 
                      " in " + std::to_string(result.processing_time_ms) + "ms");
         }
+        
+        return nfq_set_verdict(qh, nfq_id, verdict, 0, nullptr);
 
         if (packet_id % 1000 == 0) {
             auto total = total_packets_.load(std::memory_order_relaxed);

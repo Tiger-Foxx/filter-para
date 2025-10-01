@@ -83,7 +83,7 @@ bool TigerSystem::Initialize() {
     // Initialize packet handler (dispatches to worker pool)
     std::cout << "🔧 Initializing packet handler..." << std::endl;
     packet_handler_ = std::make_unique<PacketHandler>(
-        queue_num_, nullptr, debug_mode_
+        queue_num_, worker_pool_.get(), debug_mode_
     );
     
     if (!packet_handler_->Initialize()) {
