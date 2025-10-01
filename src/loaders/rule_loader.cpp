@@ -8,12 +8,41 @@
 
 // Static member definitions
 const std::unordered_map<std::string, RuleType> RuleLoader::rule_type_map_ = {
+    // Types génériques
     {"ip_range", RuleType::IP_RANGE},
     {"port", RuleType::PORT},
     {"protocol", RuleType::PROTOCOL},
     {"pattern", RuleType::PATTERN},
     {"geo", RuleType::GEO},
-    {"rate_limit", RuleType::RATE_LIMIT}
+    {"rate_limit", RuleType::RATE_LIMIT},
+    
+    // L3 - Types IP spécifiques
+    {"ip_src_in", RuleType::IP_RANGE},
+    {"ip_dst_in", RuleType::IP_RANGE},
+    {"ip_src_range", RuleType::IP_RANGE},
+    {"ip_dst_range", RuleType::IP_RANGE},
+    {"ip_src_country", RuleType::GEO},
+    {"ip_dst_country", RuleType::GEO},
+    
+    // L4 - Types port/protocole spécifiques
+    {"tcp_src_port", RuleType::PORT},
+    {"tcp_dst_port", RuleType::PORT},
+    {"udp_src_port", RuleType::PORT},
+    {"udp_dst_port", RuleType::PORT},
+    {"tcp_flags", RuleType::PROTOCOL},
+    {"icmp_type", RuleType::PROTOCOL},
+    
+    // L7 - Types HTTP/pattern spécifiques
+    {"http_uri_regex", RuleType::PATTERN},
+    {"http_uri_contains", RuleType::PATTERN},
+    {"http_method", RuleType::PATTERN},
+    {"http_header_contains", RuleType::PATTERN},
+    {"http_header_regex", RuleType::PATTERN},
+    {"http_payload_regex", RuleType::PATTERN},
+    {"http_user_agent", RuleType::PATTERN},
+    {"http_host", RuleType::PATTERN},
+    {"dns_query", RuleType::PATTERN},
+    {"dns_query_regex", RuleType::PATTERN}
 };
 
 const std::unordered_map<std::string, RuleAction> RuleLoader::rule_action_map_ = {
