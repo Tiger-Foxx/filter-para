@@ -101,7 +101,7 @@ private:
     void RemoveStream(const std::string& stream_key);
     
     // TCP reassembly
-    bool ProcessTCPSegment(TCPStream* stream, uint32_t seq_num, const std::string& payload);
+    void ProcessTCPSegment(TCPStream* stream, uint32_t seq_num, const std::string& payload);
     void HandleOutOfOrderPackets(TCPStream* stream);
     
     // HTTP parsing

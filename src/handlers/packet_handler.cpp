@@ -293,6 +293,7 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
         // 2. HANDLE HTTP REASSEMBLY (if needed)
         // ============================================================
         bool http_complete = false;
+        
         if (NeedsHTTPReassembly(parsed_packet)) {
             reassembled_packets_.fetch_add(1, std::memory_order_relaxed);
             HandleTCPReassembly(packet_data, packet_len, parsed_packet);
@@ -300,26 +301,35 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
             // Check if HTTP request is now complete
             http_complete = !parsed_packet.http_method.empty() && 
                            !parsed_packet.http_uri.empty();
+            
+            if (http_complete) {
+                LOG_DEBUG(debug_mode_, "✅ HTTP REQUEST COMPLETE: " + 
+                         parsed_packet.http_method + " " + parsed_packet.http_uri);
+            } else {
+                LOG_DEBUG(debug_mode_, "⏳ HTTP incomplete, BUFFERING packet " + std::to_string(packet_id));
+                
+                // ✅ BUFFER THIS PACKET - don't send verdict yet
+                {
+                    std::lock_guard<std::mutex> lock(pending_mutex_);
+                    pending_packets_[conn_key].emplace_back(nfq_id, qh, parsed_packet);
+                    
+                    LOG_DEBUG(debug_mode_, "[DEBUG] BUFFERED packet " + std::to_string(packet_id) + 
+                             " - waiting for complete HTTP request (total buffered: " + 
+                             std::to_string(pending_packets_[conn_key].size()) + ")");
+                }
+                
+                // ❌ NO VERDICT - packet is held in buffer
+                return 0;
+            }
+            
+            // ✅ HTTP COMPLETE: Evaluate rules for ALL buffered packets + current
+            if (http_complete && conn_key != 0) {
+                LOG_DEBUG(debug_mode_, "🔍 Evaluating buffered packets for completed HTTP request");
+            }
         }
 
         // ============================================================
-        // 3. L7 BUFFERING LOGIC
-        // ============================================================
-        if (NeedsHTTPReassembly(parsed_packet) && !http_complete) {
-            // HTTP packet but request not complete yet -> BUFFER IT
-            std::lock_guard<std::mutex> lock(pending_mutex_);
-            pending_packets_[conn_key].emplace_back(nfq_id, qh, parsed_packet);
-            
-            LOG_DEBUG(debug_mode_, "BUFFERED packet " + std::to_string(packet_id) + 
-                     " - waiting for complete HTTP request (total buffered: " + 
-                     std::to_string(pending_packets_[conn_key].size()) + ")");
-            
-            // Don't send verdict yet - packet is held
-            return 0;
-        }
-
-        // ============================================================
-        // 4. EVALUATE RULES (L3/L4 always, L7 only if HTTP complete)
+        // 3. EVALUATE RULES (L3/L4 always, L7 only if HTTP complete)
         // ============================================================
         FilterResult result(RuleAction::ACCEPT, "pending", 0.0, RuleLayer::L3);
         std::atomic<bool> result_ready{false};
@@ -342,7 +352,7 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
         }
         
         // ============================================================
-        // 5. APPLY VERDICT (to current packet + buffered packets)
+        // 4. APPLY VERDICT (to current packet + all buffered packets)
         // ============================================================
         uint32_t verdict = NF_ACCEPT;
         if (result.action == RuleAction::DROP) {
@@ -355,19 +365,21 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
 
             if (packet_callback_) packet_callback_(true);
             
-            LOG_DEBUG(debug_mode_, "DROPPED packet " + std::to_string(packet_id) + 
+            LOG_DEBUG(debug_mode_, "❌ DROPPED packet " + std::to_string(packet_id) + 
                      " by rule " + result.rule_id + 
                      " in " + std::to_string(result.processing_time_ms) + "ms");
         } else {
             accepted_packets_.fetch_add(1, std::memory_order_relaxed);
             if (packet_callback_) packet_callback_(false);
             
-            LOG_DEBUG(debug_mode_, "ACCEPTED packet " + std::to_string(packet_id) + 
+            LOG_DEBUG(debug_mode_, "✅ ACCEPTED packet " + std::to_string(packet_id) + 
                      " in " + std::to_string(result.processing_time_ms) + "ms");
         }
         
-        // Flush all pending packets for this connection with same verdict
+        // ✅ FLUSH ALL BUFFERED PACKETS for this connection with same verdict
         if (http_complete && conn_key != 0) {
+            LOG_DEBUG(debug_mode_, "🚀 Flushing buffered packets with verdict: " + 
+                     std::string(verdict == NF_DROP ? "DROP" : "ACCEPT"));
             FlushPendingPackets(conn_key, verdict);
         }
         

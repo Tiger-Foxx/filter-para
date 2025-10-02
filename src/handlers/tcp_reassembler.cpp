@@ -99,18 +99,40 @@ std::shared_ptr<HTTPData> TCPReassembler::ProcessPacket(unsigned char* packet_da
     // Process TCP segment
     uint32_t seq_num = ntohl(tcp_header->seq);
     
-    if (!ProcessTCPSegment(stream, seq_num, payload)) {
-        return nullptr; // Out of order or duplicate
-    }
+    // DEBUG: Log sequence numbers
+    std::cout << "[TCP-REASSEMBLER] Packet: seq=" << seq_num 
+              << " expected=" << stream->expected_seq 
+              << " payload_len=" << payload_len
+              << " buffer_size=" << stream->reassembled_data.size() << std::endl;
+    
+    // ✅ TOUJOURS essayer d'assembler (même si out-of-order)
+    // Python behavior: on stocke le segment et on continue
+    ProcessTCPSegment(stream, seq_num, payload);
+    
+    std::cout << "[TCP-REASSEMBLER] ✅ Segment processed, buffer now: " 
+              << stream->reassembled_data.size() << " bytes" << std::endl;
     
     // Try to parse HTTP if we have enough data
     if (stream->reassembled_data.size() >= 16) { // Minimum HTTP request size
         if (!stream->http_parsing_started) {
             // Check if this looks like HTTP
+            std::cout << "[TCP-REASSEMBLER] Checking if HTTP... First 50 bytes: \"" 
+                      << stream->reassembled_data.substr(0, std::min(50ul, stream->reassembled_data.size())) 
+                      << "\"" << std::endl;
+            
             if (IsHTTPRequest(stream->reassembled_data)) {
+                std::cout << "[TCP-REASSEMBLER] ✅ HTTP detected! Parsing..." << std::endl;
                 stream->http_parsing_started = true;
-                return ParseHTTPRequest(stream);
+                auto result = ParseHTTPRequest(stream);
+                if (result) {
+                    std::cout << "[TCP-REASSEMBLER] ✅✅ HTTP request COMPLETE: " 
+                              << result->method << " " << result->uri << std::endl;
+                } else {
+                    std::cout << "[TCP-REASSEMBLER] ⏳ HTTP incomplete, waiting for more data..." << std::endl;
+                }
+                return result;
             } else {
+                std::cout << "[TCP-REASSEMBLER] ❌ Not HTTP traffic, removing stream" << std::endl;
                 // Not HTTP traffic, remove stream to save memory
                 RemoveStream(GetStreamKey(parsed_packet.src_ip, parsed_packet.src_port,
                                          parsed_packet.dst_ip, parsed_packet.dst_port));
@@ -118,10 +140,18 @@ std::shared_ptr<HTTPData> TCPReassembler::ProcessPacket(unsigned char* packet_da
             }
         } else {
             // Continue parsing
-            return ParseHTTPRequest(stream);
+            std::cout << "[TCP-REASSEMBLER] Continuing HTTP parsing..." << std::endl;
+            auto result = ParseHTTPRequest(stream);
+            if (result) {
+                std::cout << "[TCP-REASSEMBLER] ✅✅ HTTP request NOW COMPLETE: " 
+                          << result->method << " " << result->uri << std::endl;
+            }
+            return result;
         }
     }
     
+    std::cout << "[TCP-REASSEMBLER] ⏳ Buffer too small (" << stream->reassembled_data.size() 
+              << " bytes), waiting for more data..." << std::endl;
     return nullptr;
 }
 
@@ -192,29 +222,40 @@ void TCPReassembler::RemoveStream(const std::string& stream_key) {
 // ============================================================
 // TCP REASSEMBLY LOGIC
 // ============================================================
-bool TCPReassembler::ProcessTCPSegment(TCPStream* stream, uint32_t seq_num,
+void TCPReassembler::ProcessTCPSegment(TCPStream* stream, uint32_t seq_num,
                                       const std::string& payload) {
     if (payload.empty()) {
-        return false;
+        return;
+    }
+    
+    // ✅ FIX: Initialize expected_seq with first data packet seen (like Python)
+    // This handles cases where we don't see the SYN packet
+    if (stream->expected_seq == 0 && !stream->syn_seen) {
+        stream->expected_seq = seq_num;
+        std::cout << "[TCP-REASSEMBLER] 🔧 Initializing expected_seq=" << seq_num 
+                  << " from first data packet (no SYN seen)" << std::endl;
     }
     
     // Check for in-order packet
     if (seq_num == stream->expected_seq) {
-        // In-order packet
+        // In-order packet - assemble immediately
         stream->reassembled_data += payload;
         stream->expected_seq += payload.size();
         
         total_bytes_reassembled_.fetch_add(payload.size(), std::memory_order_relaxed);
         
+        std::cout << "[TCP-REASSEMBLER] ✅ In-order packet assembled, new expected_seq=" 
+                  << stream->expected_seq << std::endl;
+        
         // Check if we can process any out-of-order packets now
         HandleOutOfOrderPackets(stream);
         
-        return true;
+        return;
     }
     
     // Out-of-order packet
     if (seq_num > stream->expected_seq) {
-        // Future packet - store for later
+        // Future packet - store for later (Python behavior)
         if (stream->out_of_order_packets.size() < MAX_OUT_OF_ORDER) {
             stream->out_of_order_packets.emplace_back(seq_num, payload);
             stream->out_of_order_count++;
@@ -224,12 +265,21 @@ bool TCPReassembler::ProcessTCPSegment(TCPStream* stream, uint32_t seq_num,
             std::sort(stream->out_of_order_packets.begin(),
                      stream->out_of_order_packets.end(),
                      [](const auto& a, const auto& b) { return a.first < b.first; });
+            
+            std::cout << "[TCP-REASSEMBLER] 📦 Stored out-of-order packet: seq=" << seq_num 
+                      << " (waiting for " << stream->expected_seq << ")" << std::endl;
+        } else {
+            std::cout << "[TCP-REASSEMBLER] ⚠️ Out-of-order buffer full, dropping packet" << std::endl;
         }
-        return false;
+        
+        return;
     }
     
-    // Old/duplicate packet - ignore
-    return false;
+    // Old/duplicate packet - ignore silently (may be retransmission)
+    if (seq_num < stream->expected_seq) {
+        std::cout << "[TCP-REASSEMBLER] ⏭️  Ignoring old/duplicate packet: seq=" << seq_num 
+                  << " < expected=" << stream->expected_seq << std::endl;
+    }
 }
 
 void TCPReassembler::HandleOutOfOrderPackets(TCPStream* stream) {
