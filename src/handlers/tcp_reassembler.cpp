@@ -322,18 +322,34 @@ std::shared_ptr<HTTPData> TCPReassembler::ParseHTTPRequest(TCPStream* stream) {
     }
     
     // Check if request is complete
+    bool is_complete = false;
+    
     if (stream->content_length > 0) {
+        // POST/PUT with body - wait for complete payload
         if (http_data->payload.size() >= stream->content_length) {
-            http_data->is_complete = true;
+            is_complete = true;
         }
     } else {
-        // No body expected
-        http_data->is_complete = stream->http_headers_complete;
+        // GET/HEAD/DELETE - complete when headers are parsed
+        // (no Content-Length header means no body expected)
+        is_complete = stream->http_headers_complete;
     }
     
-    // Return a copy if complete, otherwise nullptr
-    if (http_data->is_complete) {
-        return http_data;
+    // Return a COPY if complete, otherwise nullptr
+    if (is_complete) {
+        http_data->is_complete = true;
+        
+        // Create a copy to return (important: don't return the stream's working copy!)
+        auto result = std::make_shared<HTTPData>(*http_data);
+        
+        // Reset stream for next request
+        stream->current_http_request.reset();
+        stream->reassembled_data.clear();
+        stream->http_headers_complete = false;
+        stream->content_length = 0;
+        stream->http_parsing_started = false;
+        
+        return result;
     }
     
     return nullptr;

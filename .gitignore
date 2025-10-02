@@ -9,6 +9,7 @@ cmake-build-*/
 errors.txt
 tiger-fox
 notes.txt
+*.py
 
 # CMake
 CMakeCache.txt
