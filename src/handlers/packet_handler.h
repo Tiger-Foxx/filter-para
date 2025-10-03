@@ -10,6 +10,8 @@
 #include <cstdint>
 #include <thread>
 #include <chrono>
+#include <queue>
+#include <condition_variable>
 
 // ============================================================
 // Forward declaration des types NFQUEUE (évite include complet)
@@ -79,6 +81,24 @@ private:
     
     // Running state
     std::atomic<bool> running_{false};
+    
+    // ============================================================
+    // ASYNC VERDICT SYSTEM (élimine le busy-wait!)
+    // ============================================================
+    struct VerdictTask {
+        uint32_t nfq_id;
+        struct nfq_q_handle* qh;
+        uint32_t verdict;  // NF_ACCEPT ou NF_DROP
+    };
+    
+    // Queue pour rendre les verdicts de manière asynchrone
+    std::queue<VerdictTask> verdict_queue_;
+    std::mutex verdict_mutex_;
+    std::condition_variable verdict_cv_;
+    
+    // Thread dédié au rendu des verdicts
+    std::thread verdict_thread_;
+    void VerdictWorker();  // Boucle du thread
     
     // Connection tracking
     std::unordered_set<uint64_t> blocked_connections_;

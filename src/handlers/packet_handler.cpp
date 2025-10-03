@@ -143,6 +143,9 @@ void PacketHandler::Start(PacketCallback callback) {
 
     packet_callback_ = callback;
     running_.store(true);
+    
+    // ✅ START VERDICT WORKER THREAD (rend les verdicts asynchrones)
+    verdict_thread_ = std::thread(&PacketHandler::VerdictWorker, this);
 
     std::cout << "🚀 PacketHandler listening on queue " << queue_num_ << std::endl;
 
@@ -191,6 +194,17 @@ void PacketHandler::Stop() {
     running_.store(false);
     
     std::cout << "🧹 Stopping PacketHandler..." << std::endl;
+    
+    // ✅ STOP VERDICT WORKER THREAD
+    {
+        std::lock_guard<std::mutex> lock(verdict_mutex_);
+        verdict_cv_.notify_all();  // Wake up verdict thread
+    }
+    
+    if (verdict_thread_.joinable()) {
+        verdict_thread_.join();
+        std::cout << "   ✅ Verdict worker thread stopped" << std::endl;
+    }
 
     // Flush all pending packets (ACCEPT them) - DO THIS FIRST!
     {
@@ -345,62 +359,58 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
         }
 
         // ============================================================
-        // 3. EVALUATE RULES (L3/L4 always, L7 only if HTTP complete)
+        // 3. EVALUATE RULES ASYNCHRONOUSLY (NO BUSY-WAIT!)
         // ============================================================
-        FilterResult result(RuleAction::ACCEPT, "pending", 0.0, RuleLayer::L3);
-        std::atomic<bool> result_ready{false};
         
-        worker_pool_->SubmitPacket(parsed_packet, [&result, &result_ready](FilterResult r) {
-            result = r;
-            result_ready.store(true, std::memory_order_release);
+        // ✅ ASYNC VERSION: Submit packet to worker and return IMMEDIATELY
+        // Le worker appellera le callback quand l'évaluation sera terminée
+        worker_pool_->SubmitPacket(parsed_packet, 
+            [this, qh, nfq_id, packet_id, conn_key, http_complete](FilterResult result) {
+            
+            // Ce callback est appelé par le worker thread (pas par HandlePacket!)
+            uint32_t verdict = NF_ACCEPT;
+            
+            if (result.action == RuleAction::DROP) {
+                verdict = NF_DROP;
+                dropped_packets_.fetch_add(1, std::memory_order_relaxed);
+                
+                if (conn_key != 0) {
+                    BlockConnection(conn_key);
+                }
+
+                if (packet_callback_) packet_callback_(true);
+                
+                LOG_DEBUG(debug_mode_, "❌ DROPPED packet " + std::to_string(packet_id) + 
+                         " by rule " + result.rule_id + 
+                         " in " + std::to_string(result.processing_time_ms) + "ms");
+            } else {
+                accepted_packets_.fetch_add(1, std::memory_order_relaxed);
+                if (packet_callback_) packet_callback_(false);
+                
+                LOG_DEBUG(debug_mode_, "✅ ACCEPTED packet " + std::to_string(packet_id) + 
+                         " in " + std::to_string(result.processing_time_ms) + "ms");
+            }
+            
+            // ✅ FLUSH ALL BUFFERED PACKETS for this connection with same verdict
+            if (http_complete && conn_key != 0) {
+                LOG_DEBUG(debug_mode_, "🚀 Flushing buffered packets with verdict: " + 
+                         std::string(verdict == NF_DROP ? "DROP" : "ACCEPT"));
+                FlushPendingPackets(conn_key, verdict);
+            }
+            
+            // ✅ ENQUEUE VERDICT (ne bloque PAS le thread HandlePacket!)
+            {
+                std::lock_guard<std::mutex> lock(verdict_mutex_);
+                verdict_queue_.push({nfq_id, qh, verdict});
+                verdict_cv_.notify_one();  // Wake up verdict thread
+            }
         });
         
-        // Wait for result with timeout
-        auto start_wait = std::chrono::steady_clock::now();
-        while (!result_ready.load(std::memory_order_acquire)) {
-            std::this_thread::sleep_for(std::chrono::microseconds(10));
-            
-            auto elapsed = std::chrono::steady_clock::now() - start_wait;
-            if (elapsed > std::chrono::milliseconds(100)) {
-                LOG_DEBUG(debug_mode_, "WARNING: Worker timeout for packet " + std::to_string(packet_id));
-                break;
-            }
-        }
+        // ✅ RETURN IMMEDIATELY - NO WAIT!
+        // Le verdict sera rendu par le verdict_thread_ de manière asynchrone
+        // ❌ ANCIEN CODE: return nfq_set_verdict() ici = busy-wait!
+        // ✅ NOUVEAU CODE: return 0 = paquet pris en charge, verdict plus tard
         
-        // ============================================================
-        // 4. APPLY VERDICT (to current packet + all buffered packets)
-        // ============================================================
-        uint32_t verdict = NF_ACCEPT;
-        if (result.action == RuleAction::DROP) {
-            verdict = NF_DROP;
-            dropped_packets_.fetch_add(1, std::memory_order_relaxed);
-            
-            if (conn_key != 0) {
-                BlockConnection(conn_key);
-            }
-
-            if (packet_callback_) packet_callback_(true);
-            
-            LOG_DEBUG(debug_mode_, "❌ DROPPED packet " + std::to_string(packet_id) + 
-                     " by rule " + result.rule_id + 
-                     " in " + std::to_string(result.processing_time_ms) + "ms");
-        } else {
-            accepted_packets_.fetch_add(1, std::memory_order_relaxed);
-            if (packet_callback_) packet_callback_(false);
-            
-            LOG_DEBUG(debug_mode_, "✅ ACCEPTED packet " + std::to_string(packet_id) + 
-                     " in " + std::to_string(result.processing_time_ms) + "ms");
-        }
-        
-        // ✅ FLUSH ALL BUFFERED PACKETS for this connection with same verdict
-        if (http_complete && conn_key != 0) {
-            LOG_DEBUG(debug_mode_, "🚀 Flushing buffered packets with verdict: " + 
-                     std::string(verdict == NF_DROP ? "DROP" : "ACCEPT"));
-            FlushPendingPackets(conn_key, verdict);
-        }
-        
-        return nfq_set_verdict(qh, nfq_id, verdict, 0, nullptr);
-
         if (packet_id % 1000 == 0) {
             auto total = total_packets_.load(std::memory_order_relaxed);
             auto dropped = dropped_packets_.load(std::memory_order_relaxed);
@@ -417,12 +427,60 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
                       << std::endl;
         }
 
-        return nfq_set_verdict(qh, nfq_id, verdict, 0, nullptr);
+        return 0;  // ✅ ASYNC: HandlePacket returns immediately!
 
     } catch (const std::exception& e) {
         std::cerr << "❌ Exception handling packet " << packet_id << ": " << e.what() << std::endl;
-        return nfq_set_verdict(qh, nfq_id, NF_ACCEPT, 0, nullptr);
+        
+        // ✅ ASYNC: Enqueue ACCEPT verdict même en cas d'erreur
+        {
+            std::lock_guard<std::mutex> lock(verdict_mutex_);
+            verdict_queue_.push({nfq_id, qh, NF_ACCEPT});
+            verdict_cv_.notify_one();
+        }
+        return 0;
     }
+}
+
+// ============================================================
+// VERDICT WORKER THREAD (ASYNC VERDICT RENDERING)
+// ============================================================
+void PacketHandler::VerdictWorker() {
+    std::cout << "🚀 Verdict worker thread started" << std::endl;
+    
+    while (running_.load()) {
+        std::unique_lock<std::mutex> lock(verdict_mutex_);
+        
+        // Attendre qu'un verdict soit disponible (ou que running_ devienne false)
+        verdict_cv_.wait(lock, [this] {
+            return !verdict_queue_.empty() || !running_.load();
+        });
+        
+        // Rendre TOUS les verdicts dans la queue (batch processing!)
+        while (!verdict_queue_.empty()) {
+            VerdictTask task = verdict_queue_.front();
+            verdict_queue_.pop();
+            
+            // Unlock avant de rendre le verdict (nfq_set_verdict peut être lent)
+            lock.unlock();
+            
+            // ✅ RENDER VERDICT (ne bloque AUCUN autre thread!)
+            nfq_set_verdict(task.qh, task.nfq_id, task.verdict, 0, nullptr);
+            
+            // Relock pour le prochain verdict
+            lock.lock();
+        }
+    }
+    
+    // ✅ FLUSH REMAINING VERDICTS on shutdown
+    std::lock_guard<std::mutex> lock(verdict_mutex_);
+    while (!verdict_queue_.empty()) {
+        VerdictTask task = verdict_queue_.front();
+        verdict_queue_.pop();
+        nfq_set_verdict(task.qh, task.nfq_id, task.verdict, 0, nullptr);
+    }
+    
+    std::cout << "🛑 Verdict worker thread stopped" << std::endl;
 }
 
 // ============================================================

@@ -54,6 +54,26 @@ if(NOT PCRE2_FOUND)
     message(FATAL_ERROR "libpcre2 not found. Install with: sudo apt install libpcre2-dev")
 endif()
 
+# llhttp (ultra-rapide pour HTTP parsing, 10-20x plus rapide)
+find_library(LLHTTP_LIBRARY NAMES llhttp libllhttp)
+find_path(LLHTTP_INCLUDE_DIR NAMES llhttp.h PATHS /usr/include /usr/local/include)
+if(NOT LLHTTP_LIBRARY OR NOT LLHTTP_INCLUDE_DIR)
+    message(FATAL_ERROR "llhttp not found. Install with: sudo apt install libllhttp-dev")
+endif()
+
+# Hyperscan (100x plus rapide que PCRE2 pour regex matching)
+find_library(HYPERSCAN_LIBRARY NAMES hs libhs)
+find_path(HYPERSCAN_INCLUDE_DIR NAMES hs/hs.h PATHS /usr/include /usr/local/include)
+if(NOT HYPERSCAN_LIBRARY OR NOT HYPERSCAN_INCLUDE_DIR)
+    message(WARNING "Hyperscan not found. Performance will be degraded. Install with: sudo apt install libhyperscan-dev")
+endif()
+
+# nDPI (protocol detection)
+pkg_check_modules(NDPI libndpi)
+if(NOT NDPI_FOUND)
+    message(WARNING "nDPI not found. Protocol detection will be limited. Install with: sudo apt install libndpi-dev")
+endif()
+
 # Source files
 file(GLOB_RECURSE SOURCES 
     src/*.cpp
@@ -82,9 +102,22 @@ target_compile_definitions(tiger-fox PRIVATE
 target_link_libraries(tiger-fox 
     ${NETFILTER_QUEUE_LIBRARIES}
     ${PCRE2_LIBRARIES}
+    ${LLHTTP_LIBRARY}
     Threads::Threads
     pthread
 )
+
+# Link Hyperscan if available
+if(HYPERSCAN_LIBRARY)
+    target_link_libraries(tiger-fox ${HYPERSCAN_LIBRARY})
+    target_compile_definitions(tiger-fox PRIVATE HAVE_HYPERSCAN=1)
+endif()
+
+# Link nDPI if available
+if(NDPI_FOUND)
+    target_link_libraries(tiger-fox ${NDPI_LIBRARIES})
+    target_compile_definitions(tiger-fox PRIVATE HAVE_NDPI=1)
+endif()
 
 # nlohmann-json linking
 if(nlohmann_json_FOUND)
@@ -97,7 +130,18 @@ endif()
 target_include_directories(tiger-fox PRIVATE 
     ${NETFILTER_QUEUE_INCLUDE_DIRS}
     ${PCRE2_INCLUDE_DIRS}
+    ${LLHTTP_INCLUDE_DIR}
 )
+
+# Include Hyperscan if available
+if(HYPERSCAN_INCLUDE_DIR)
+    target_include_directories(tiger-fox PRIVATE ${HYPERSCAN_INCLUDE_DIR})
+endif()
+
+# Include nDPI if available
+if(NDPI_FOUND)
+    target_include_directories(tiger-fox PRIVATE ${NDPI_INCLUDE_DIRS})
+endif()
 
 # Compile options
 target_compile_options(tiger-fox PRIVATE
@@ -128,5 +172,16 @@ message(STATUS "")
 message(STATUS "Dependencies:")
 message(STATUS "  NetFilter Queue: ${NETFILTER_QUEUE_VERSION}")
 message(STATUS "  PCRE2: ${PCRE2_VERSION}")
+message(STATUS "  llhttp: ${LLHTTP_LIBRARY}")
+if(HYPERSCAN_LIBRARY)
+    message(STATUS "  Hyperscan: ${HYPERSCAN_LIBRARY} (100x faster regex)")
+else()
+    message(STATUS "  Hyperscan: NOT FOUND (performance will be degraded)")
+endif()
+if(NDPI_FOUND)
+    message(STATUS "  nDPI: ${NDPI_VERSION} (protocol detection)")
+else()
+    message(STATUS "  nDPI: NOT FOUND (limited protocol detection)")
+endif()
 message(STATUS "  Threads: Available")
 message(STATUS "==================================================")
