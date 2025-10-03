@@ -220,7 +220,7 @@ bool TigerSystem::SetupIPTables() {
     // }
     
     std::cout << "✅ iptables rule added successfully" << std::endl;
-    std::cout << "   Rule: " << cmd << std::endl;
+    // std::cout << "   Rule: " << cmd << std::endl;
     
     return true;
 }
