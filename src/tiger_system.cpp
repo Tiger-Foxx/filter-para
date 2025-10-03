@@ -80,6 +80,10 @@ bool TigerSystem::Initialize() {
     worker_pool_ = std::make_unique<WorkerPool>(rules_by_layer, num_workers_);
     worker_pool_->Start();
     
+    // Update num_workers_ with actual count (in case it was 0 = auto)
+    auto stats = worker_pool_->GetStats();
+    size_t actual_workers = stats.num_workers;
+    
     // Initialize packet handler (dispatches to worker pool)
     std::cout << "🔧 Initializing packet handler..." << std::endl;
     packet_handler_ = std::make_unique<PacketHandler>(
@@ -94,7 +98,7 @@ bool TigerSystem::Initialize() {
     std::cout << "\n✅ Tiger-Fox System initialized successfully!" << std::endl;
     std::cout << "   Process PID: " << process_pid_ << std::endl;
     std::cout << "   Queue number: " << queue_num_ << std::endl;
-    std::cout << "   Workers: " << num_workers_ << std::endl;
+    std::cout << "   Workers: " << actual_workers << std::endl;
     std::cout << "\n";
     
     return true;
@@ -205,9 +209,9 @@ bool TigerSystem::SetupIPTables() {
     std::cout << "🔧 Setting up iptables rules..." << std::endl;
     
     // Build iptables command
-    std::string cmd = "iptables -I FORWARD -j NFQUEUE --queue-num " + std::to_string(queue_num_);
+    // std::string cmd = "iptables -I FORWARD -j NFQUEUE --queue-num " + std::to_string(queue_num_);
     
-    int result = system(cmd.c_str());
+    // int result = system(cmd.c_str());
     if (result != 0) {
         std::cerr << "❌ Error: Failed to add iptables rule" << std::endl;
         std::cerr << "   Command: " << cmd << std::endl;
@@ -224,9 +228,9 @@ bool TigerSystem::SetupIPTables() {
 bool TigerSystem::CleanupIPTables() {
     std::cout << "🧹 Removing iptables rules..." << std::endl;
     
-    std::string cmd = "iptables -D FORWARD -j NFQUEUE --queue-num " + std::to_string(queue_num_);
+    // std::string cmd = "iptables -D FORWARD -j NFQUEUE --queue-num " + std::to_string(queue_num_);
     
-    int result = system(cmd.c_str());
+    // int result = system(cmd.c_str());
     if (result != 0) {
         std::cerr << "⚠️  Warning: Failed to remove iptables rule (might not exist)" << std::endl;
         return false;

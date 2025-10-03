@@ -293,38 +293,54 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
         // 2. HANDLE HTTP REASSEMBLY (if needed)
         // ============================================================
         bool http_complete = false;
+        bool has_http_data = false;  // Track if packet actually has HTTP payload
         
         if (NeedsHTTPReassembly(parsed_packet)) {
-            reassembled_packets_.fetch_add(1, std::memory_order_relaxed);
-            HandleTCPReassembly(packet_data, packet_len, parsed_packet);
-            
-            // Check if HTTP request is now complete
-            http_complete = !parsed_packet.http_method.empty() && 
-                           !parsed_packet.http_uri.empty();
-            
-            if (http_complete) {
-                LOG_DEBUG(debug_mode_, "✅ HTTP REQUEST COMPLETE: " + 
-                         parsed_packet.http_method + " " + parsed_packet.http_uri);
-            } else {
-                LOG_DEBUG(debug_mode_, "⏳ HTTP incomplete, BUFFERING packet " + std::to_string(packet_id));
+            // ✅ FIX: Only call reassembler if packet has actual payload
+            // SYN/ACK/FIN packets without data don't need reassembly
+            int ip_header_len = (packet_data[0] & 0x0F) * 4;
+            if (packet_len > ip_header_len + 20) {  // Has TCP payload
+                struct tcphdr* tcp_hdr = (struct tcphdr*)(packet_data + ip_header_len);
+                int tcp_header_len = tcp_hdr->doff * 4;
+                int payload_len = packet_len - ip_header_len - tcp_header_len;
                 
-                // ✅ BUFFER THIS PACKET - don't send verdict yet
-                {
-                    std::lock_guard<std::mutex> lock(pending_mutex_);
-                    pending_packets_[conn_key].emplace_back(nfq_id, qh, parsed_packet);
+                if (payload_len > 0) {
+                    has_http_data = true;
+                    reassembled_packets_.fetch_add(1, std::memory_order_relaxed);
+                    HandleTCPReassembly(packet_data, packet_len, parsed_packet);
                     
-                    LOG_DEBUG(debug_mode_, "[DEBUG] BUFFERED packet " + std::to_string(packet_id) + 
-                             " - waiting for complete HTTP request (total buffered: " + 
-                             std::to_string(pending_packets_[conn_key].size()) + ")");
+                    // Check if HTTP request is now complete
+                    http_complete = !parsed_packet.http_method.empty() && 
+                                   !parsed_packet.http_uri.empty();
+                    
+                    if (http_complete) {
+                        LOG_DEBUG(debug_mode_, "✅ HTTP REQUEST COMPLETE: " + 
+                                 parsed_packet.http_method + " " + parsed_packet.http_uri);
+                        
+                        // ✅ HTTP COMPLETE: Evaluate rules for ALL buffered packets + current
+                        if (conn_key != 0) {
+                            LOG_DEBUG(debug_mode_, "🔍 Evaluating buffered packets for completed HTTP request");
+                        }
+                    } else {
+                        LOG_DEBUG(debug_mode_, "⏳ HTTP incomplete (has data but not complete), BUFFERING packet " + std::to_string(packet_id));
+                        
+                        // ✅ BUFFER THIS PACKET - don't send verdict yet
+                        {
+                            std::lock_guard<std::mutex> lock(pending_mutex_);
+                            pending_packets_[conn_key].emplace_back(nfq_id, qh, parsed_packet);
+                            
+                            LOG_DEBUG(debug_mode_, "[DEBUG] BUFFERED packet " + std::to_string(packet_id) + 
+                                     " - waiting for complete HTTP request (total buffered: " + 
+                                     std::to_string(pending_packets_[conn_key].size()) + ")");
+                        }
+                        
+                        // ❌ NO VERDICT - packet is held in buffer
+                        return 0;
+                    }
+                } else {
+                    // ✅ FIX: TCP control packet (SYN/ACK/FIN) without payload → ACCEPT immediately
+                    LOG_DEBUG(debug_mode_, "� TCP control packet without HTTP data, ACCEPTING immediately");
                 }
-                
-                // ❌ NO VERDICT - packet is held in buffer
-                return 0;
-            }
-            
-            // ✅ HTTP COMPLETE: Evaluate rules for ALL buffered packets + current
-            if (http_complete && conn_key != 0) {
-                LOG_DEBUG(debug_mode_, "🔍 Evaluating buffered packets for completed HTTP request");
             }
         }
 
