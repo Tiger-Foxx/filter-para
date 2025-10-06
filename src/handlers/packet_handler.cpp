@@ -12,6 +12,7 @@
 #include <thread>
 #include <chrono>
 #include <atomic>
+#include <condition_variable>  // ✅ AJOUTÉ pour condition_variable
 
 // ============================================================
 // ORDRE CRITIQUE : Headers réseau POSIX/glibc d'abord
@@ -349,21 +350,22 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
         // ============================================================
         FilterResult result(RuleAction::ACCEPT, "pending", 0.0, RuleLayer::L3);
         std::atomic<bool> result_ready{false};
+        std::mutex result_mutex;
+        std::condition_variable result_cv;
         
-        worker_pool_->SubmitPacket(parsed_packet, [&result, &result_ready](FilterResult r) {
+        worker_pool_->SubmitPacket(parsed_packet, [&](FilterResult r) {
+            std::lock_guard<std::mutex> lock(result_mutex);
             result = r;
             result_ready.store(true, std::memory_order_release);
+            result_cv.notify_one();
         });
         
-        // Wait for result with timeout
-        auto start_wait = std::chrono::steady_clock::now();
-        while (!result_ready.load(std::memory_order_acquire)) {
-            std::this_thread::sleep_for(std::chrono::microseconds(10));
-            
-            auto elapsed = std::chrono::steady_clock::now() - start_wait;
-            if (elapsed > std::chrono::milliseconds(100)) {
+        // ✅ FIX: Use condition_variable instead of busy-wait (NO CPU waste!)
+        {
+            std::unique_lock<std::mutex> lock(result_mutex);
+            if (!result_cv.wait_for(lock, std::chrono::milliseconds(100), 
+                [&result_ready]() { return result_ready.load(std::memory_order_acquire); })) {
                 LOG_DEBUG(debug_mode_, "WARNING: Worker timeout for packet " + std::to_string(packet_id));
-                break;
             }
         }
         
@@ -399,8 +401,7 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
             FlushPendingPackets(conn_key, verdict);
         }
         
-        return nfq_set_verdict(qh, nfq_id, verdict, 0, nullptr);
-
+        // ✅ Stats logging (moved BEFORE return)
         if (packet_id % 1000 == 0) {
             auto total = total_packets_.load(std::memory_order_relaxed);
             auto dropped = dropped_packets_.load(std::memory_order_relaxed);
@@ -416,7 +417,7 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
                       << "reassembled=" << reassembled << " (" << reassembly_rate << "%)"
                       << std::endl;
         }
-
+        
         return nfq_set_verdict(qh, nfq_id, verdict, 0, nullptr);
 
     } catch (const std::exception& e) {
@@ -492,7 +493,10 @@ bool PacketHandler::NeedsHTTPReassembly(const PacketData& packet) {
         return false;
     }
 
-    return http_ports_.count(packet.src_port) > 0 || http_ports_.count(packet.dst_port) > 0;
+    // ✅ FIX CRITIQUE: Only reassemble CLIENT → SERVER (requests)
+    // Ignore SERVER → CLIENT (responses) to avoid 7s timeout bug!
+    // Client typically uses high port (>1024), server uses 80/443/8080
+    return http_ports_.count(packet.dst_port) > 0;  // ✅ Only check DESTINATION port!
 }
 
 void PacketHandler::HandleTCPReassembly(unsigned char* data, int len, PacketData& packet) {
