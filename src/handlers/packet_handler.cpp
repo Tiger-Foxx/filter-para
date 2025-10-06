@@ -148,6 +148,9 @@ void PacketHandler::Start(PacketCallback callback) {
 
     packet_callback_ = callback;
     running_.store(true);
+    
+    // ✅ START ASYNC VERDICT WORKER THREAD
+    verdict_thread_ = std::thread(&PacketHandler::VerdictWorkerLoop, this);
 
     std::cout << "🚀 PacketHandler listening on queue " << queue_num_ << std::endl;
 

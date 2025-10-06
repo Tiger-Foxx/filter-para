@@ -6,7 +6,11 @@
 #include <functional>
 #include <memory>
 #include <unordered_set>
+#include <unordered_map>
+#include <queue>
+#include <vector>
 #include <mutex>
+#include <condition_variable>
 #include <cstdint>
 #include <thread>
 #include <chrono>
