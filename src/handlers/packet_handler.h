@@ -112,6 +112,28 @@ private:
     void FlushPendingPackets(uint64_t connection_key, uint32_t verdict);
     void CheckPendingTimeouts();
     
+    // ============================================================
+    // ASYNC VERDICT QUEUE (for non-blocking packet processing)
+    // ============================================================
+    struct PendingVerdict {
+        uint32_t nfq_id;
+        struct nfq_q_handle* qh;
+        uint32_t verdict;  // NF_ACCEPT or NF_DROP
+        bool is_drop;      // For stats tracking
+        std::chrono::steady_clock::time_point timestamp;
+        
+        PendingVerdict(uint32_t id, struct nfq_q_handle* q, uint32_t v, bool drop)
+            : nfq_id(id), qh(q), verdict(v), is_drop(drop),
+              timestamp(std::chrono::steady_clock::now()) {}
+    };
+    
+    std::queue<PendingVerdict> verdict_queue_;
+    mutable std::mutex verdict_mutex_;
+    std::condition_variable verdict_cv_;
+    std::thread verdict_thread_;
+    
+    void VerdictWorkerLoop();  // Dedicated thread for applying verdicts
+    
     // Statistics (atomic)
     std::atomic<uint64_t> total_packets_{0};
     std::atomic<uint64_t> dropped_packets_{0};
