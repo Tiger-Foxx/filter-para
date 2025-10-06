@@ -80,9 +80,8 @@ PacketHandler::PacketHandler(int queue_num, WorkerPool* worker_pool, bool debug_
     
     LOG_DEBUG(debug_mode_, "PacketHandler initialized for queue " + std::to_string(queue_num_));
     
-    // Start async verdict worker thread
-    verdict_thread_ = std::thread(&PacketHandler::VerdictWorkerLoop, this);
-    LOG_DEBUG(debug_mode_, "Async verdict worker thread started");
+    // ✅ NOTE: Verdict worker thread will be started in Start(), not here!
+    // Starting it here causes crashes because NFQUEUE handles aren't ready yet
 }
 
 PacketHandler::~PacketHandler() {
