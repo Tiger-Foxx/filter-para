@@ -81,6 +81,21 @@ FilterResult FastRuleEngine::FilterPacket(const PacketData& packet) {
     total_packets_.fetch_add(1, std::memory_order_relaxed);
     
     // ============================================================
+    // EARLY EXIT: Skip HTTP responses (server → client)
+    // ============================================================
+    // Si src_port = 80/443 et dst_port > 1024 → c'est une réponse HTTP
+    if ((packet.src_port == 80 || packet.src_port == 443) && packet.dst_port > 1024) {
+        accepted_packets_.fetch_add(1, std::memory_order_relaxed);
+        return FilterResult(RuleAction::ACCEPT, "http_response", timer.ElapsedMillis(), RuleLayer::L3);
+    }
+    
+    // Skip ICMP (ping) - protocol 1
+    if (packet.protocol == 1) {
+        accepted_packets_.fetch_add(1, std::memory_order_relaxed);
+        return FilterResult(RuleAction::ACCEPT, "icmp", timer.ElapsedMillis(), RuleLayer::L3);
+    }
+    
+    // ============================================================
     // L3: IP CHECKS (O(1) hash lookup or O(k) for k ranges)
     // ============================================================
     uint32_t src_ip = IPStringToUint32(packet.src_ip);
@@ -137,11 +152,17 @@ FilterResult FastRuleEngine::FilterPacket(const PacketData& packet) {
     // ============================================================
     // L7: APPLICATION LAYER (sequential, but optimized with JIT regex)
     // ============================================================
-    for (Rule* rule : l7_rules_) {
-        if (EvaluateRule(*rule, packet)) {
-            l7_drops_.fetch_add(1, std::memory_order_relaxed);
-            dropped_packets_.fetch_add(1, std::memory_order_relaxed);
-            return FilterResult(rule->action, rule->id, timer.ElapsedMillis(), RuleLayer::L7);
+    // ONLY check L7 for HTTP requests (client → server with HTTP method)
+    bool is_http_request = !packet.http_method.empty() && 
+                           (packet.dst_port == 80 || packet.dst_port == 443);
+    
+    if (is_http_request) {
+        for (Rule* rule : l7_rules_) {
+            if (EvaluateRule(*rule, packet)) {
+                l7_drops_.fetch_add(1, std::memory_order_relaxed);
+                dropped_packets_.fetch_add(1, std::memory_order_relaxed);
+                return FilterResult(rule->action, rule->id, timer.ElapsedMillis(), RuleLayer::L7);
+            }
         }
     }
     
