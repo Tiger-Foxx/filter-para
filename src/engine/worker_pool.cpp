@@ -1,5 +1,6 @@
 #include "worker_pool.h"
 #include "rule_engine.h"
+#include "fast_rule_engine.h"  // ✅ Use optimized engine
 #include "../handlers/tcp_reassembler.h"
 #include "../utils.h"
 
@@ -15,45 +16,15 @@
 
 // ============================================================
 // HYBRID RULE ENGINE (moteur léger pour chaque worker)
+// ✅ NOW USING FAST RULE ENGINE with hash tables!
 // ============================================================
-class HybridRuleEngine : public RuleEngine {
+class HybridRuleEngine : public FastRuleEngine {
 public:
     explicit HybridRuleEngine(const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules)
-        : RuleEngine(rules) {}
-
-    FilterResult FilterPacket(const PacketData& packet) override {
-        HighResTimer timer;
-        
-        total_packets_.fetch_add(1, std::memory_order_relaxed);
-        
-        // Évaluation séquentielle L3 → L4 → L7
-        for (const auto& rule : rules_by_layer_[RuleLayer::L3]) {
-            if (EvaluateRule(*rule, packet)) {
-                l3_drops_.fetch_add(1, std::memory_order_relaxed);
-                dropped_packets_.fetch_add(1, std::memory_order_relaxed);
-                return FilterResult(rule->action, rule->id, timer.ElapsedMillis(), RuleLayer::L3);
-            }
-        }
-        
-        for (const auto& rule : rules_by_layer_[RuleLayer::L4]) {
-            if (EvaluateRule(*rule, packet)) {
-                l4_drops_.fetch_add(1, std::memory_order_relaxed);
-                dropped_packets_.fetch_add(1, std::memory_order_relaxed);
-                return FilterResult(rule->action, rule->id, timer.ElapsedMillis(), RuleLayer::L4);
-            }
-        }
-        
-        for (const auto& rule : rules_by_layer_[RuleLayer::L7]) {
-            if (EvaluateRule(*rule, packet)) {
-                l7_drops_.fetch_add(1, std::memory_order_relaxed);
-                dropped_packets_.fetch_add(1, std::memory_order_relaxed);
-                return FilterResult(rule->action, rule->id, timer.ElapsedMillis(), RuleLayer::L7);
-            }
-        }
-        
-        accepted_packets_.fetch_add(1, std::memory_order_relaxed);
-        return FilterResult(RuleAction::ACCEPT, "default", timer.ElapsedMillis(), RuleLayer::L7);
-    }
+        : FastRuleEngine(rules) {}
+    
+    // ✅ Use FastRuleEngine::FilterPacket() directly (hash-based O(1) lookups)
+    // No need to override, parent class has optimized implementation
 };
 
 // ============================================================

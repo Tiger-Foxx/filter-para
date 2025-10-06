@@ -252,6 +252,8 @@ void PacketHandler::Stop() {
     }
 
     if (queue_handle_) {
+        // ✅ IMPORTANT: Unbind before destroy to release queue
+        nfq_unbind_pf(nfq_handle_, AF_INET);
         nfq_destroy_queue(queue_handle_);
         queue_handle_ = nullptr;
         std::cout << "   ✅ Destroyed NFQUEUE" << std::endl;
@@ -388,7 +390,7 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
         uint64_t connection_key = conn_key;
         uint64_t pkt_id = packet_id;
         
-        worker_pool_->SubmitPacket(parsed_packet, [=, this](FilterResult result) {
+        worker_pool_->SubmitPacket(parsed_packet, [this, nfq_id, qh, http_was_complete, connection_key, pkt_id](FilterResult result) {
             // ✅ This callback runs in WORKER thread (not main thread!)
             // Just enqueue the verdict - NO blocking operations here
             

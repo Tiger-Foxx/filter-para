@@ -48,6 +48,7 @@ struct Rule {
     std::string id;
     RuleLayer layer;
     RuleType type;
+    std::string type_str;  // ✅ Original string type for fast indexing
     RuleAction action;
     std::vector<std::string> values;
     std::string field;

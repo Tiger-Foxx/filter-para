@@ -208,19 +208,37 @@ void TigerSystem::SignalHandler(int signal) {
 bool TigerSystem::SetupIPTables() {
     std::cout << "🔧 Setting up iptables rules..." << std::endl;
     
-    // Build iptables command
-    // std::string cmd = "iptables -I FORWARD -j NFQUEUE --queue-num " + std::to_string(queue_num_);
+    // ✅ Setup asymmetric filtering (CloudLab topology)
+    // eno2 (10.10.2.1) = server side
+    // enp5s0f0 (10.10.1.1) = client side
     
-    // int result = system(cmd.c_str());
-    // if (result != 0) {
-    //     std::cerr << "❌ Error: Failed to add iptables rule" << std::endl;
-    //     std::cerr << "   Command: " << cmd << std::endl;
-    //     std::cerr << "   Make sure you have root privileges" << std::endl;
-    //     return false;
-    // }
+    // Check if rules already exist
+    std::string check_cmd = "iptables -C FORWARD -i enp5s0f0 -o eno2 -j NFQUEUE --queue-num " + 
+                            std::to_string(queue_num_) + " 2>/dev/null";
+    int exists = system(check_cmd.c_str());
     
-    std::cout << "✅ iptables rule added successfully" << std::endl;
-    // std::cout << "   Rule: " << cmd << std::endl;
+    if (exists == 0) {
+        std::cout << "   ℹ️  iptables rules already configured" << std::endl;
+        return true;
+    }
+    
+    // Rule 1: ACCEPT return traffic (server → client)
+    std::string accept_cmd = "iptables -A FORWARD -i eno2 -o enp5s0f0 -j ACCEPT";
+    if (system(accept_cmd.c_str()) != 0) {
+        std::cerr << "⚠️  Warning: Failed to add ACCEPT rule (may already exist)" << std::endl;
+    }
+    
+    // Rule 2: NFQUEUE for incoming traffic (client → server)
+    std::string nfqueue_cmd = "iptables -A FORWARD -i enp5s0f0 -o eno2 -j NFQUEUE --queue-num " + 
+                              std::to_string(queue_num_);
+    if (system(nfqueue_cmd.c_str()) != 0) {
+        std::cerr << "❌ Error: Failed to add NFQUEUE rule" << std::endl;
+        return false;
+    }
+    
+    std::cout << "✅ iptables rules configured:" << std::endl;
+    std::cout << "   • ACCEPT: eno2 → enp5s0f0 (return traffic)" << std::endl;
+    std::cout << "   • NFQUEUE " << queue_num_ << ": enp5s0f0 → eno2 (filtered traffic)" << std::endl;
     
     return true;
 }
@@ -228,13 +246,14 @@ bool TigerSystem::SetupIPTables() {
 bool TigerSystem::CleanupIPTables() {
     std::cout << "🧹 Removing iptables rules..." << std::endl;
     
-    // std::string cmd = "iptables -D FORWARD -j NFQUEUE --queue-num " + std::to_string(queue_num_);
+    // Remove NFQUEUE rule
+    std::string nfqueue_cmd = "iptables -D FORWARD -i enp5s0f0 -o eno2 -j NFQUEUE --queue-num " + 
+                              std::to_string(queue_num_) + " 2>/dev/null";
+    system(nfqueue_cmd.c_str());
     
-    // int result = system(cmd.c_str());
-    // if (result != 0) {
-    //     std::cerr << "⚠️  Warning: Failed to remove iptables rule (might not exist)" << std::endl;
-    //     return false;
-    // }
+    // Remove ACCEPT rule
+    std::string accept_cmd = "iptables -D FORWARD -i eno2 -o enp5s0f0 -j ACCEPT 2>/dev/null";
+    system(accept_cmd.c_str());
     
     std::cout << "✅ iptables rules removed" << std::endl;
     return true;

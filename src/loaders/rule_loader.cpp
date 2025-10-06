@@ -125,6 +125,7 @@ std::unique_ptr<Rule> RuleLoader::ParseRule(const nlohmann::json& rule_json) {
     if (!rule_json.contains("type") || !rule_json["type"].is_string()) {
         throw std::runtime_error("Missing or invalid rule 'type'");
     }
+    rule->type_str = rule_json["type"];  // ✅ Store original string
     rule->type = ParseRuleType(rule_json["type"]);
     
     if (!rule_json.contains("action") || !rule_json["action"].is_string()) {
