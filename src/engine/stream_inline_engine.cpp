@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <algorithm>
+#include <ctime>
 #include <linux/in.h>  // For IPPROTO_TCP
 
 // ============================================================
@@ -364,9 +365,10 @@ FilterResult StreamInlineEngine::FilterPacketWithRawData(
     
     {
         std::lock_guard<std::mutex> lock(blocked_connections_mutex_);
-        if (blocked_connections_.count(conn_key)) {
+        auto it = blocked_connections_.find(conn_key);
+        if (it != blocked_connections_.end()) {
             dropped_packets_.fetch_add(1, std::memory_order_relaxed);
-            return FilterResult(RuleAction::DROP, "connection_already_blocked", 0.0, RuleLayer::L7);
+            return FilterResult(RuleAction::DROP, "connection_already_blocked:" + it->second.rule_id, 0.0, RuleLayer::L7);
         }
     }
     
@@ -378,7 +380,7 @@ FilterResult StreamInlineEngine::FilterPacketWithRawData(
     // If already dropped, block the entire connection
     if (quick_result.action == RuleAction::DROP) {
         std::lock_guard<std::mutex> lock(blocked_connections_mutex_);
-        blocked_connections_.insert(conn_key);
+        blocked_connections_[conn_key] = {time(nullptr), quick_result.rule_id};
         return quick_result;
     }
     
@@ -412,7 +414,7 @@ FilterResult StreamInlineEngine::FilterPacketWithRawData(
             // Block the entire connection
             {
                 std::lock_guard<std::mutex> lock(blocked_connections_mutex_);
-                blocked_connections_.insert(conn_key);
+                blocked_connections_[conn_key] = {time(nullptr), matched_rule};
             }
             
             l7_drops_.fetch_add(1, std::memory_order_relaxed);
@@ -561,6 +563,30 @@ pcre2_code* StreamInlineEngine::CompilePCRE2Pattern(const std::string& pattern, 
 void StreamInlineEngine::CleanupExpiredStreams() {
     if (tcp_reassembler_) {
         tcp_reassembler_->CleanupExpiredStreams();
+    }
+}
+
+void StreamInlineEngine::CleanupExpiredBlockedConnections() {
+    std::lock_guard<std::mutex> lock(blocked_connections_mutex_);
+    
+    time_t now = time(nullptr);
+    time_t timeout = 300;  // 5 minutes (300 seconds)
+    
+    size_t initial_size = blocked_connections_.size();
+    
+    // Remove expired blocked connections
+    for (auto it = blocked_connections_.begin(); it != blocked_connections_.end();) {
+        if (now - it->second.blocked_at > timeout) {
+            it = blocked_connections_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    
+    size_t removed = initial_size - blocked_connections_.size();
+    if (removed > 0) {
+        std::cout << "🧹 Cleaned up " << removed << " expired blocked connections (remaining: " 
+                  << blocked_connections_.size() << ")" << std::endl;
     }
 }
 

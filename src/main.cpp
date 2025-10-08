@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <csignal>
 #include <memory>
+#include <ctime>
 #include <getopt.h>
 
 #include <libnetfilter_queue/libnetfilter_queue.h>
@@ -430,6 +431,8 @@ int main(int argc, char* argv[]) {
         
         std::cout << "[DEBUG] 🔁 Entering main receive loop (socket_fd=" << socket_fd << ")..." << std::endl;
         
+        time_t last_cleanup = time(nullptr);
+        
         while (g_running) {
             int received = recv(socket_fd, buffer, sizeof(buffer), 0);
             
@@ -452,6 +455,13 @@ int main(int argc, char* argv[]) {
             if (++packet_count >= 1000) {
                 g_engine->CleanupExpiredStreams();
                 packet_count = 0;
+            }
+            
+            // Cleanup expired blocked connections every 30 seconds
+            time_t now = time(nullptr);
+            if (now - last_cleanup >= 30) {
+                g_engine->CleanupExpiredBlockedConnections();
+                last_cleanup = now;
             }
         }
         

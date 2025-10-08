@@ -45,6 +45,9 @@ public:
     // Cleanup expired TCP streams
     void CleanupExpiredStreams();
     
+    // Cleanup expired blocked connections
+    void CleanupExpiredBlockedConnections();
+    
     // Statistics
     void PrintPerformanceStats() const override;
     
@@ -110,8 +113,16 @@ private:
         }
     };
     
-    std::unordered_set<ConnectionKey, ConnectionKeyHash> blocked_connections_;
+    struct BlockedConnectionInfo {
+        time_t blocked_at;      // Timestamp when blocked
+        std::string rule_id;    // Which rule triggered the block
+    };
+    
+    std::unordered_map<ConnectionKey, BlockedConnectionInfo, ConnectionKeyHash> blocked_connections_;
     std::mutex blocked_connections_mutex_;
+    
+    // Cleanup old blocked connections (called periodically)
+    void CleanupExpiredBlockedConnections();
     
     // Performance flags
     std::atomic<bool> index_built_{false};
