@@ -418,8 +418,23 @@ int main(int argc, char* argv[]) {
             return EXIT_FAILURE;
         }
         
+        // Set queue length (default is only 1024, increase for high throughput)
+        if (nfq_set_queue_maxlen(g_queue_handle, 10000) < 0) {
+            std::cout << "⚠️  Warning: Could not set queue length (may affect performance)\n";
+        } else {
+            std::cout << "✅ NFQUEUE length set to 10000 packets\n";
+        }
+        
         // Get socket fd
         int socket_fd = nfq_fd(g_nfq_handle);
+        
+        // Increase socket buffer size for high throughput
+        int sock_buf_size = 16 * 1024 * 1024;  // 16 MB
+        if (setsockopt(socket_fd, SOL_SOCKET, SO_RCVBUF, &sock_buf_size, sizeof(sock_buf_size)) < 0) {
+            std::cout << "⚠️  Warning: Could not increase socket buffer size\n";
+        } else {
+            std::cout << "✅ Socket receive buffer set to " << (sock_buf_size / (1024*1024)) << " MB\n";
+        }
         
         std::cout << "✅ NFQUEUE ready on queue " << args.queue_num << std::endl;
         std::cout << "\n📡 Processing packets INLINE (press Ctrl+C to stop)...\n" << std::endl;
@@ -427,7 +442,8 @@ int main(int argc, char* argv[]) {
         // ============================================================
         // MAIN LOOP (INLINE PROCESSING)
         // ============================================================
-        char buffer[4096] __attribute__((aligned(4)));
+        // Increase buffer size for high throughput (64KB)
+        char buffer[65536] __attribute__((aligned(4)));
         
         std::cout << "[DEBUG] 🔁 Entering main receive loop (socket_fd=" << socket_fd << ")..." << std::endl;
         
@@ -441,7 +457,14 @@ int main(int argc, char* argv[]) {
                     std::cout << "[DEBUG] ⚠️  recv() interrupted by signal, continuing..." << std::endl;
                     continue;  // Signal interrupted
                 }
-                std::cerr << "❌ recv() error: " << strerror(errno) << std::endl;
+                std::cerr << "❌ recv() error (errno=" << errno << "): " << strerror(errno) << std::endl;
+                std::cerr << "   This usually means NFQUEUE buffer overflow or packet loss" << std::endl;
+                std::cerr << "   Try: sudo sysctl -w net.core.rmem_max=134217728" << std::endl;
+                break;
+            }
+            
+            if (received == 0) {
+                std::cerr << "⚠️  recv() returned 0 (connection closed?)" << std::endl;
                 break;
             }
             
