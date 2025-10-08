@@ -4,6 +4,7 @@
 #include <iostream>
 #include <algorithm>
 #include <ctime>
+#include <cstring>     // For memcpy
 #include <linux/in.h>  // For IPPROTO_TCP
 
 // ============================================================

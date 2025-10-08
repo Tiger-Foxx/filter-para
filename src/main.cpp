@@ -75,7 +75,8 @@ void PrintUsage(const char* program_name) {
     std::cout << "  -V, --version          Show version information\n";
     std::cout << "\n";
     std::cout << "Examples:\n";
-    std::cout << "  sudo " << program_name << "                           # Default settings\n";
+    std::cout << "  sudo " << program_name << "                           # Default: 8 workers\n";
+    std::cout << "  sudo " << program_name << " --workers 16               # 16 L7 worker threads\n";
     std::cout << "  sudo " << program_name << " --streams 100000           # 100K TCP streams\n";
     std::cout << "  sudo " << program_name << " --queue 1 --verbose        # Queue 1 with debug\n";
     std::cout << "  sudo " << program_name << " --rules custom_rules.json  # Custom rules file\n";

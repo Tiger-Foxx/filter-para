@@ -59,6 +59,29 @@ public:
     
 private:
     // ============================================================
+    // CONNECTION TRACKING (needed for worker pool)
+    // ============================================================
+    
+    struct ConnectionKey {
+        std::string src_ip;
+        uint16_t src_port;
+        std::string dst_ip;
+        uint16_t dst_port;
+        
+        bool operator==(const ConnectionKey& other) const {
+            return src_ip == other.src_ip && src_port == other.src_port &&
+                   dst_ip == other.dst_ip && dst_port == other.dst_port;
+        }
+    };
+    
+    struct ConnectionKeyHash {
+        size_t operator()(const ConnectionKey& key) const {
+            return std::hash<std::string>{}(key.src_ip + ":" + std::to_string(key.src_port) +
+                                           "-" + key.dst_ip + ":" + std::to_string(key.dst_port));
+        }
+    };
+    
+    // ============================================================
     // WORKER POOL FOR L7 PROCESSING
     // ============================================================
     
@@ -129,26 +152,7 @@ private:
     // TCP Reassembler (streaming mode)
     std::unique_ptr<TCPReassembler> tcp_reassembler_;
     
-    // Connection tracking for blocked connections
-    struct ConnectionKey {
-        std::string src_ip;
-        uint16_t src_port;
-        std::string dst_ip;
-        uint16_t dst_port;
-        
-        bool operator==(const ConnectionKey& other) const {
-            return src_ip == other.src_ip && src_port == other.src_port &&
-                   dst_ip == other.dst_ip && dst_port == other.dst_port;
-        }
-    };
-    
-    struct ConnectionKeyHash {
-        size_t operator()(const ConnectionKey& key) const {
-            return std::hash<std::string>{}(key.src_ip + ":" + std::to_string(key.src_port) +
-                                           "-" + key.dst_ip + ":" + std::to_string(key.dst_port));
-        }
-    };
-    
+    // Blocked connections tracking (using ConnectionKey defined above)
     struct BlockedConnectionInfo {
         time_t blocked_at;      // Timestamp when blocked
         std::string rule_id;    // Which rule triggered the block
