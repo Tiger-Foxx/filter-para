@@ -10,48 +10,84 @@
 #include <string>
 #include <memory>
 #include <mutex>
+#include <thread>
+#include <queue>
+#include <condition_variable>
+#include <atomic>
 #include <pcre2.h>
 
 // ============================================================
-// 🚀 STREAM INLINE ENGINE - Real WAF Performance
+// 🚀 HYBRID ULTRA-FAST ENGINE - Maximum Performance
 // ============================================================
-// Design:
-// 1. Hash tables for O(1) L3/L4 lookups
-// 2. PCRE2-JIT for ultra-fast regex matching
-// 3. Streaming HTTP parsing with TCP reassembly
-// 4. Inline processing (no workers, no queues)
-// 5. RESPECTS ALL RULES from JSON file
+// ARCHITECTURE HYBRIDE OPTIMALE:
+// 1. Main thread : Inline L3/L4 ultra-rapide (hash O(1))
+// 2. Worker pool : Parallélisation L7 HTTP/PCRE2 lourd  
+// 3. Lock-free counters : Statistiques sans mutex
+// 4. Connection tracking : Blocage intelligent permanent
+// 5. Pre-allocated buffers : Zero malloc en hot path
 // ============================================================
 
 class StreamInlineEngine : public RuleEngine {
 public:
     explicit StreamInlineEngine(
         const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules,
-        size_t max_tcp_streams = 50000
+        size_t max_tcp_streams = 50000,
+        size_t num_workers = 4  // NEW: Worker pool size
     );
     virtual ~StreamInlineEngine();
 
-    // Main filtering function (INLINE - called from NFQUEUE callback)
-    // This is the ONLY entry point - handles all L3/L4/L7 checks with TCP reassembly
+    // FAST PATH: Inline L3/L4 filtering (called from main NFQUEUE thread)
     FilterResult FilterPacket(const PacketData& packet) override;
     
-    // Wrapper for processing with raw packet data (for TCP reassembly)
+    // HYBRID PATH: L3/L4 inline + L7 async via worker pool
     FilterResult FilterPacketWithRawData(
         unsigned char* raw_data,
         int raw_len,
         const PacketData& packet
     );
     
-    // Cleanup expired TCP streams
+    // Cleanup functions
     void CleanupExpiredStreams();
-    
-    // Cleanup expired blocked connections
     void CleanupExpiredBlockedConnections();
     
     // Statistics
     void PrintPerformanceStats() const override;
     
+    // Worker pool management
+    void StartWorkers();
+    void StopWorkers();
+    
 private:
+    // ============================================================
+    // WORKER POOL FOR L7 PROCESSING
+    // ============================================================
+    
+    struct L7WorkItem {
+        unsigned char* raw_data;  // Packet data (copied)
+        int raw_len;
+        PacketData packet;
+        uint32_t nfq_id;         // For verdict callback
+        ConnectionKey conn_key;
+        
+        L7WorkItem() : raw_data(nullptr), raw_len(0), nfq_id(0) {}
+        ~L7WorkItem() {
+            if (raw_data) delete[] raw_data;
+        }
+    };
+    
+    std::vector<std::thread> workers_;
+    std::queue<std::unique_ptr<L7WorkItem>> work_queue_;
+    std::mutex queue_mutex_;
+    std::condition_variable queue_cv_;
+    std::atomic<bool> workers_running_{false};
+    size_t num_workers_;
+    
+    // Worker function
+    void WorkerThread(int worker_id);
+    
+    // L7 processing in worker
+    FilterResult ProcessL7InWorker(L7WorkItem* item);
+    
     // ============================================================
     // OPTIMIZED DATA STRUCTURES
     // ============================================================

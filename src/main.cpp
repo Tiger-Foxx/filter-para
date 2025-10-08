@@ -51,6 +51,7 @@ struct CommandLineArgs {
     std::string rules_file = "rules/example_rules.json";
     int queue_num = 0;
     size_t max_tcp_streams = 50000;
+    int num_workers = 8;  // Number of L7 worker threads
     bool debug_mode = false;
     bool show_help = false;
     bool show_version = false;
@@ -68,6 +69,7 @@ void PrintUsage(const char* program_name) {
     std::cout << "  -r, --rules FILE       Rules file path (default: rules/example_rules.json)\n";
     std::cout << "  -q, --queue NUM        NFQUEUE number (default: 0)\n";
     std::cout << "  -s, --streams NUM      Max TCP streams (default: 50000)\n";
+    std::cout << "  -w, --workers NUM      Number of L7 worker threads (default: 8)\n";
     std::cout << "  -v, --verbose          Enable debug/verbose mode\n";
     std::cout << "  -h, --help             Show this help message\n";
     std::cout << "  -V, --version          Show version information\n";
@@ -97,18 +99,18 @@ void PrintVersion() {
     std::cout << "\n";
     std::cout << "🐯 Tiger-Fox C++ Network Filtering System 🦊\n";
     std::cout << "===============================================\n";
-    std::cout << "Version: 2.0.0 (Stream-Inline)\n";
+    std::cout << "Version: 2.0.0 (HYBRID Stream-Inline + Workers)\n";
     std::cout << "Build: " << __DATE__ << " " << __TIME__ << "\n";
-    std::cout << "Architecture: Stream-Inline (Zero-Latency WAF)\n";
+    std::cout << "Architecture: HYBRID (Inline L3/L4 + Worker Pool L7)\n";
     std::cout << "Author: Pascal DONFACK ARTHUR MONTGOMERY (Tiger Fox)\n";
     std::cout << "\n";
     std::cout << "Features:\n";
-    std::cout << "  ✓ Single-threaded inline processing (no queues/mutex)\n";
-    std::cout << "  ✓ O(1) hash table lookups for L3/L4\n";
+    std::cout << "  ✓ Inline L3/L4 processing (zero latency, O(1) hash lookups)\n";
+    std::cout << "  ✓ Async worker pool for L7 HTTP parsing (scalable parallelism)\n";
     std::cout << "  ✓ TCP stream reassembly for complete HTTP analysis\n";
     std::cout << "  ✓ PCRE2-JIT compiled regex (10x faster)\n";
     std::cout << "  ✓ Full L7 WAF rules (XSS, SQL injection, etc.)\n";
-    std::cout << "  ✓ Real NFQUEUE inline filtering\n";
+    std::cout << "  ✓ Real NFQUEUE inline filtering with async L7 verdict\n";
     std::cout << "\n";
     std::cout << "Dependencies:\n";
     std::cout << "  - libnetfilter_queue\n";
@@ -125,6 +127,7 @@ CommandLineArgs ParseArguments(int argc, char* argv[]) {
         {"rules",    required_argument, 0, 'r'},
         {"queue",    required_argument, 0, 'q'},
         {"streams",  required_argument, 0, 's'},
+        {"workers",  required_argument, 0, 'w'},
         {"verbose",  no_argument,       0, 'v'},
         {"help",     no_argument,       0, 'h'},
         {"version",  no_argument,       0, 'V'},
@@ -134,7 +137,7 @@ CommandLineArgs ParseArguments(int argc, char* argv[]) {
     int option_index = 0;
     int c;
     
-    while ((c = getopt_long(argc, argv, "r:q:s:vhV", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(argc, argv, "r:q:s:w:vhV", long_options, &option_index)) != -1) {
         switch (c) {
             case 'r':
                 args.rules_file = std::string(optarg);
@@ -162,6 +165,19 @@ CommandLineArgs ParseArguments(int argc, char* argv[]) {
                     }
                 } catch (...) {
                     std::cerr << "❌ Error: Invalid stream count format\n";
+                    exit(EXIT_FAILURE);
+                }
+                break;
+                
+            case 'w':
+                try {
+                    args.num_workers = std::stoi(optarg);
+                    if (args.num_workers < 1 || args.num_workers > 128) {
+                        std::cerr << "❌ Error: Invalid worker count (must be 1-128)\n";
+                        exit(EXIT_FAILURE);
+                    }
+                } catch (...) {
+                    std::cerr << "❌ Error: Invalid worker count format\n";
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -352,9 +368,10 @@ int main(int argc, char* argv[]) {
         // ============================================================
         // CREATE ENGINE
         // ============================================================
-        std::cout << "\n🚀 Creating StreamInlineEngine..." << std::endl;
+        std::cout << "\n🚀 Creating StreamInlineEngine (HYBRID Mode)..." << std::endl;
+        std::cout << "   ⚡ Inline L3/L4 filtering + " << args.num_workers << " L7 worker threads" << std::endl;
         
-        g_engine = std::make_unique<StreamInlineEngine>(rules, args.max_tcp_streams);
+        g_engine = std::make_unique<StreamInlineEngine>(rules, args.max_tcp_streams, args.num_workers);
         
         std::cout << std::endl;
         

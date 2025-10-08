@@ -12,18 +12,23 @@
 
 StreamInlineEngine::StreamInlineEngine(
     const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules,
-    size_t max_tcp_streams)
-    : RuleEngine(rules) {
+    size_t max_tcp_streams,
+    size_t num_workers)
+    : RuleEngine(rules), num_workers_(num_workers) {
     
-    std::cout << "🚀 Initializing StreamInlineEngine (High-Performance WAF)" << std::endl;
+    std::cout << "🚀 Initializing HYBRID Ultra-Fast Engine" << std::endl;
+    std::cout << "   Architecture: Inline L3/L4 + " << num_workers << " Workers for L7" << std::endl;
     
-    // Create TCP reassembler with shorter timeout for high-load scenarios (5 seconds)
+    // Create TCP reassembler with shorter timeout (5 seconds)
     tcp_reassembler_ = std::make_unique<TCPReassembler>(max_tcp_streams, 5);
     
     // Build optimized indexes
     BuildOptimizedIndex();
     
-    std::cout << "✅ StreamInlineEngine ready!" << std::endl;
+    // Start worker pool
+    StartWorkers();
+    
+    std::cout << "✅ Hybrid Engine ready!" << std::endl;
     std::cout << "   • Blocked src IPs (exact): " << blocked_src_ips_.size() << std::endl;
     std::cout << "   • Blocked dst IPs (exact): " << blocked_dst_ips_.size() << std::endl;
     std::cout << "   • Blocked src IP ranges: " << blocked_src_ip_ranges_.size() << std::endl;
@@ -35,9 +40,11 @@ StreamInlineEngine::StreamInlineEngine(
     std::cout << "   • HTTP payload patterns: " << http_payload_patterns_.size() << std::endl;
     std::cout << "   • HTTP method patterns: " << http_method_patterns_.size() << std::endl;
     std::cout << "   • TCP reassembler: max " << max_tcp_streams << " streams" << std::endl;
+    std::cout << "   • L7 worker threads: " << num_workers << std::endl;
 }
 
 StreamInlineEngine::~StreamInlineEngine() {
+    StopWorkers();
     // Cleanup PCRE2 patterns handled by unique_ptr destructors
 }
 
@@ -398,41 +405,28 @@ FilterResult StreamInlineEngine::FilterPacketWithRawData(
     }
     
     // ============================================================
-    // L7: TCP REASSEMBLY + HTTP PATTERN MATCHING
+    // L7: DISPATCH TO WORKER POOL (ASYNC - NON-BLOCKING!)
     // ============================================================
     
-    HighResTimer l7_timer;
+    // Copy packet data for worker thread
+    auto work_item = std::make_unique<L7WorkItem>();
+    work_item->raw_data = new unsigned char[raw_len];
+    memcpy(work_item->raw_data, raw_data, raw_len);
+    work_item->raw_len = raw_len;
+    work_item->packet = packet;
+    work_item->conn_key = conn_key;
     
-    try {
-        // Process with TCP reassembler
-        auto http_data = tcp_reassembler_->ProcessPacket(raw_data, raw_len, 
-                                                         const_cast<PacketData&>(packet));
-        
-        if (http_data && http_data->is_complete) {
-            // We have a complete HTTP request - check L7 rules
-            std::string matched_rule;
-            if (MatchHTTPPatterns(*http_data, matched_rule)) {
-                // Block the entire connection
-                {
-                    std::lock_guard<std::mutex> lock(blocked_connections_mutex_);
-                    blocked_connections_[conn_key] = {time(nullptr), matched_rule};
-                }
-                
-                l7_drops_.fetch_add(1, std::memory_order_relaxed);
-                dropped_packets_.fetch_add(1, std::memory_order_relaxed);
-                return FilterResult(RuleAction::DROP, matched_rule, l7_timer.ElapsedMillis(), RuleLayer::L7);
-            }
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "❌ Error in TCP reassembler: " << e.what() << std::endl;
-        // Continue processing - don't crash
-    } catch (...) {
-        std::cerr << "❌ Unknown error in TCP reassembler" << std::endl;
-        // Continue processing - don't crash
+    // Add to worker queue (non-blocking)
+    {
+        std::lock_guard<std::mutex> lock(queue_mutex_);
+        work_queue_.push(std::move(work_item));
     }
+    queue_cv_.notify_one();
     
-    // ACCEPT (passed all checks)
-    return quick_result;
+    // ACCEPT immediately (L7 will be checked asynchronously by workers)
+    // If attack detected later, connection will be blocked for future packets
+    accepted_packets_.fetch_add(1, std::memory_order_relaxed);
+    return FilterResult(RuleAction::ACCEPT, "l7_queued", 0.0, RuleLayer::L7);
 }
 
 // ============================================================
@@ -596,6 +590,94 @@ void StreamInlineEngine::CleanupExpiredBlockedConnections() {
         std::cout << "🧹 Cleaned up " << removed << " expired blocked connections (remaining: " 
                   << blocked_connections_.size() << ")" << std::endl;
     }
+}
+
+// ============================================================
+// WORKER POOL MANAGEMENT
+// ============================================================
+
+void StreamInlineEngine::StartWorkers() {
+    workers_running_ = true;
+    
+    for (size_t i = 0; i < num_workers_; ++i) {
+        workers_.emplace_back(&StreamInlineEngine::WorkerThread, this, i);
+    }
+    
+    std::cout << "🧵 Started " << num_workers_ << " L7 worker threads" << std::endl;
+}
+
+void StreamInlineEngine::StopWorkers() {
+    workers_running_ = false;
+    queue_cv_.notify_all();
+    
+    for (auto& worker : workers_) {
+        if (worker.joinable()) {
+            worker.join();
+        }
+    }
+    
+    std::cout << "🛑 Stopped all worker threads" << std::endl;
+}
+
+void StreamInlineEngine::WorkerThread(int worker_id) {
+    while (workers_running_) {
+        std::unique_ptr<L7WorkItem> item;
+        
+        {
+            std::unique_lock<std::mutex> lock(queue_mutex_);
+            queue_cv_.wait(lock, [this] { return !work_queue_.empty() || !workers_running_; });
+            
+            if (!workers_running_ && work_queue_.empty()) {
+                break;
+            }
+            
+            if (!work_queue_.empty()) {
+                item = std::move(work_queue_.front());
+                work_queue_.pop();
+            }
+        }
+        
+        if (item) {
+            // Process L7 in worker thread
+            ProcessL7InWorker(item.get());
+        }
+    }
+}
+
+FilterResult StreamInlineEngine::ProcessL7InWorker(L7WorkItem* item) {
+    HighResTimer l7_timer;
+    
+    try {
+        // Process with TCP reassembler
+        auto http_data = tcp_reassembler_->ProcessPacket(
+            item->raw_data, 
+            item->raw_len, 
+            const_cast<PacketData&>(item->packet)
+        );
+        
+        if (http_data && http_data->is_complete) {
+            // Check L7 rules
+            std::string matched_rule;
+            if (MatchHTTPPatterns(*http_data, matched_rule)) {
+                // Block the entire connection
+                {
+                    std::lock_guard<std::mutex> lock(blocked_connections_mutex_);
+                    blocked_connections_[item->conn_key] = {time(nullptr), matched_rule};
+                }
+                
+                l7_drops_.fetch_add(1, std::memory_order_relaxed);
+                dropped_packets_.fetch_add(1, std::memory_order_relaxed);
+                return FilterResult(RuleAction::DROP, matched_rule, l7_timer.ElapsedMillis(), RuleLayer::L7);
+            }
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "❌ Error in L7 worker: " << e.what() << std::endl;
+    } catch (...) {
+        std::cerr << "❌ Unknown error in L7 worker" << std::endl;
+    }
+    
+    accepted_packets_.fetch_add(1, std::memory_order_relaxed);
+    return FilterResult(RuleAction::ACCEPT, "l7_passed", l7_timer.ElapsedMillis(), RuleLayer::L7);
 }
 
 // ============================================================
