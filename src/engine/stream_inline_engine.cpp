@@ -357,11 +357,28 @@ FilterResult StreamInlineEngine::FilterPacketWithRawData(
     int raw_len,
     const PacketData& packet) {
     
-    // First do all L3/L4 checks (reuse FilterPacket logic)
+    // ============================================================
+    // CHECK IF CONNECTION IS ALREADY BLOCKED
+    // ============================================================
+    ConnectionKey conn_key{packet.src_ip, packet.src_port, packet.dst_ip, packet.dst_port};
+    
+    {
+        std::lock_guard<std::mutex> lock(blocked_connections_mutex_);
+        if (blocked_connections_.count(conn_key)) {
+            dropped_packets_.fetch_add(1, std::memory_order_relaxed);
+            return FilterResult(RuleAction::DROP, "connection_already_blocked", 0.0, RuleLayer::L7);
+        }
+    }
+    
+    // ============================================================
+    // L3/L4 CHECKS
+    // ============================================================
     FilterResult quick_result = FilterPacket(packet);
     
-    // If already dropped or not HTTP, return immediately
+    // If already dropped, block the entire connection
     if (quick_result.action == RuleAction::DROP) {
+        std::lock_guard<std::mutex> lock(blocked_connections_mutex_);
+        blocked_connections_.insert(conn_key);
         return quick_result;
     }
     
@@ -392,6 +409,12 @@ FilterResult StreamInlineEngine::FilterPacketWithRawData(
         // We have a complete HTTP request - check L7 rules
         std::string matched_rule;
         if (MatchHTTPPatterns(*http_data, matched_rule)) {
+            // Block the entire connection
+            {
+                std::lock_guard<std::mutex> lock(blocked_connections_mutex_);
+                blocked_connections_.insert(conn_key);
+            }
+            
             l7_drops_.fetch_add(1, std::memory_order_relaxed);
             dropped_packets_.fetch_add(1, std::memory_order_relaxed);
             return FilterResult(RuleAction::DROP, matched_rule, l7_timer.ElapsedMillis(), RuleLayer::L7);

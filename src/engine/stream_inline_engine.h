@@ -9,6 +9,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <mutex>
 #include <pcre2.h>
 
 // ============================================================
@@ -88,6 +89,29 @@ private:
     
     // TCP Reassembler (streaming mode)
     std::unique_ptr<TCPReassembler> tcp_reassembler_;
+    
+    // Connection tracking for blocked connections
+    struct ConnectionKey {
+        std::string src_ip;
+        uint16_t src_port;
+        std::string dst_ip;
+        uint16_t dst_port;
+        
+        bool operator==(const ConnectionKey& other) const {
+            return src_ip == other.src_ip && src_port == other.src_port &&
+                   dst_ip == other.dst_ip && dst_port == other.dst_port;
+        }
+    };
+    
+    struct ConnectionKeyHash {
+        size_t operator()(const ConnectionKey& key) const {
+            return std::hash<std::string>{}(key.src_ip + ":" + std::to_string(key.src_port) +
+                                           "-" + key.dst_ip + ":" + std::to_string(key.dst_port));
+        }
+    };
+    
+    std::unordered_set<ConnectionKey, ConnectionKeyHash> blocked_connections_;
+    std::mutex blocked_connections_mutex_;
     
     // Performance flags
     std::atomic<bool> index_built_{false};
