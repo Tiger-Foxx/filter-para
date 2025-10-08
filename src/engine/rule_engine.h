@@ -141,7 +141,9 @@ protected:
     mutable std::atomic<uint64_t> l3_drops_{0};
     mutable std::atomic<uint64_t> l4_drops_{0};
     mutable std::atomic<uint64_t> l7_drops_{0};
-    mutable std::atomic<double> total_processing_time_ms_{0.0};
+    
+    // Total processing time in microseconds (uint64_t for atomic operations)
+    mutable std::atomic<uint64_t> total_processing_time_us_{0};
 
     // Rule evaluation methods (CONST)
     bool EvaluateRule(const Rule& rule, const PacketData& packet) const;

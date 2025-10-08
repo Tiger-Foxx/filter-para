@@ -1,10 +1,47 @@
-#include "tiger_system.h"
+#include "engine/stream_inline_engine.h"
+#include "loaders/rule_loader.h"
 #include "utils.h"
 
 #include <iostream>
 #include <string>
 #include <cstdlib>
+#include <csignal>
+#include <memory>
 #include <getopt.h>
+
+#include <libnetfilter_queue/libnetfilter_queue.h>
+#include <linux/netfilter.h>
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/udp.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <errno.h>
+#include <cstring>
+#include <sstream>
+#include <iomanip>
+#include <endian.h>
+
+// Network byte order conversions (without arpa/inet.h)
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+#define ntohs(x) __builtin_bswap16(x)
+#define htons(x) __builtin_bswap16(x)
+#define ntohl(x) __builtin_bswap32(x)
+#define htonl(x) __builtin_bswap32(x)
+#else
+#define ntohs(x) (x)
+#define htons(x) (x)
+#define ntohl(x) (x)
+#define htonl(x) (x)
+#endif
+
+// ============================================================
+// GLOBAL STATE (for signal handling)
+// ============================================================
+std::unique_ptr<StreamInlineEngine> g_engine;
+struct nfq_handle* g_nfq_handle = nullptr;
+struct nfq_q_handle* g_queue_handle = nullptr;
+std::atomic<bool> g_running{true};
 
 // ============================================================
 // COMMAND-LINE ARGUMENTS PARSING
@@ -12,7 +49,7 @@
 struct CommandLineArgs {
     std::string rules_file = "rules/example_rules.json";
     int queue_num = 0;
-    size_t num_workers = 0;  // 0 = auto-detect
+    size_t max_tcp_streams = 50000;
     bool debug_mode = false;
     bool show_help = false;
     bool show_version = false;
@@ -22,21 +59,21 @@ void PrintUsage(const char* program_name) {
     std::cout << "\n";
     std::cout << "🐯 Tiger-Fox C++ Network Filtering System 🦊\n";
     std::cout << "===============================================\n";
-    std::cout << "Hybrid Multi-Worker Architecture for High-Performance Filtering\n";
+    std::cout << "Stream-Inline Architecture for Ultra High-Performance WAF\n";
     std::cout << "\n";
     std::cout << "Usage: " << program_name << " [OPTIONS]\n";
     std::cout << "\n";
     std::cout << "Options:\n";
     std::cout << "  -r, --rules FILE       Rules file path (default: rules/example_rules.json)\n";
     std::cout << "  -q, --queue NUM        NFQUEUE number (default: 0)\n";
-    std::cout << "  -w, --workers NUM      Number of workers (default: auto-detect CPU cores)\n";
+    std::cout << "  -s, --streams NUM      Max TCP streams (default: 50000)\n";
     std::cout << "  -v, --verbose          Enable debug/verbose mode\n";
     std::cout << "  -h, --help             Show this help message\n";
     std::cout << "  -V, --version          Show version information\n";
     std::cout << "\n";
     std::cout << "Examples:\n";
-    std::cout << "  sudo " << program_name << "                           # Auto-detect workers\n";
-    std::cout << "  sudo " << program_name << " --workers 8                # Use 8 workers\n";
+    std::cout << "  sudo " << program_name << "                           # Default settings\n";
+    std::cout << "  sudo " << program_name << " --streams 100000           # 100K TCP streams\n";
     std::cout << "  sudo " << program_name << " --queue 1 --verbose        # Queue 1 with debug\n";
     std::cout << "  sudo " << program_name << " --rules custom_rules.json  # Custom rules file\n";
     std::cout << "\n";
@@ -59,24 +96,23 @@ void PrintVersion() {
     std::cout << "\n";
     std::cout << "🐯 Tiger-Fox C++ Network Filtering System 🦊\n";
     std::cout << "===============================================\n";
-    std::cout << "Version: 1.0.0\n";
+    std::cout << "Version: 2.0.0 (Stream-Inline)\n";
     std::cout << "Build: " << __DATE__ << " " << __TIME__ << "\n";
-    std::cout << "Architecture: Hybrid Multi-Worker\n";
+    std::cout << "Architecture: Stream-Inline (Zero-Latency WAF)\n";
     std::cout << "Author: Pascal DONFACK ARTHUR MONTGOMERY (Tiger Fox)\n";
     std::cout << "\n";
     std::cout << "Features:\n";
-    std::cout << "  ✓ Multi-worker parallel processing\n";
-    std::cout << "  ✓ Hash-based flow dispatch\n";
-    std::cout << "  ✓ TCP reassembly for HTTP L7 analysis\n";
-    std::cout << "  ✓ Unified L3/L4/L7 rule filtering\n";
-    std::cout << "  ✓ CPU affinity and NUMA awareness\n";
+    std::cout << "  ✓ Single-threaded inline processing (no queues/mutex)\n";
+    std::cout << "  ✓ O(1) hash table lookups for L3/L4\n";
+    std::cout << "  ✓ TCP stream reassembly for complete HTTP analysis\n";
+    std::cout << "  ✓ PCRE2-JIT compiled regex (10x faster)\n";
+    std::cout << "  ✓ Full L7 WAF rules (XSS, SQL injection, etc.)\n";
     std::cout << "  ✓ Real NFQUEUE inline filtering\n";
     std::cout << "\n";
     std::cout << "Dependencies:\n";
     std::cout << "  - libnetfilter_queue\n";
-    std::cout << "  - PCRE2\n";
+    std::cout << "  - PCRE2 (with JIT)\n";
     std::cout << "  - nlohmann-json\n";
-    std::cout << "  - pthread\n";
     std::cout << "\n";
 }
 
@@ -87,7 +123,7 @@ CommandLineArgs ParseArguments(int argc, char* argv[]) {
     static struct option long_options[] = {
         {"rules",    required_argument, 0, 'r'},
         {"queue",    required_argument, 0, 'q'},
-        {"workers",  required_argument, 0, 'w'},
+        {"streams",  required_argument, 0, 's'},
         {"verbose",  no_argument,       0, 'v'},
         {"help",     no_argument,       0, 'h'},
         {"version",  no_argument,       0, 'V'},
@@ -97,7 +133,7 @@ CommandLineArgs ParseArguments(int argc, char* argv[]) {
     int option_index = 0;
     int c;
     
-    while ((c = getopt_long(argc, argv, "r:q:w:vhV", long_options, &option_index)) != -1) {
+    while ((c = getopt_long(argc, argv, "r:q:s:vhV", long_options, &option_index)) != -1) {
         switch (c) {
             case 'r':
                 args.rules_file = std::string(optarg);
@@ -116,15 +152,15 @@ CommandLineArgs ParseArguments(int argc, char* argv[]) {
                 }
                 break;
                 
-            case 'w':
+            case 's':
                 try {
-                    args.num_workers = std::stoul(optarg);
-                    if (args.num_workers < 1 || args.num_workers > 128) {
-                        std::cerr << "❌ Error: Invalid worker count (must be 1-128)\n";
+                    args.max_tcp_streams = std::stoul(optarg);
+                    if (args.max_tcp_streams < 100 || args.max_tcp_streams > 1000000) {
+                        std::cerr << "❌ Error: Invalid stream count (must be 100-1000000)\n";
                         exit(EXIT_FAILURE);
                     }
                 } catch (...) {
-                    std::cerr << "❌ Error: Invalid worker count format\n";
+                    std::cerr << "❌ Error: Invalid stream count format\n";
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -161,6 +197,114 @@ CommandLineArgs ParseArguments(int argc, char* argv[]) {
 }
 
 // ============================================================
+// SIGNAL HANDLER
+// ============================================================
+void SignalHandler(int signal) {
+    std::cout << "\n🛑 Received signal " << signal << ", shutting down gracefully..." << std::endl;
+    g_running = false;
+}
+
+// ============================================================
+// IP TO STRING (without arpa/inet.h to avoid header conflicts)
+// ============================================================
+std::string IPToString(uint32_t ip) {
+    std::ostringstream oss;
+    oss << ((ip) & 0xFF) << "."
+        << ((ip >> 8) & 0xFF) << "."
+        << ((ip >> 16) & 0xFF) << "."
+        << ((ip >> 24) & 0xFF);
+    return oss.str();
+}
+
+// ============================================================
+// PARSE PACKET DATA (inline)
+// ============================================================
+bool ParsePacketData(unsigned char* data, int len, PacketData& packet) {
+    if (len < sizeof(struct iphdr)) {
+        return false;
+    }
+    
+    struct iphdr* ip_header = (struct iphdr*)data;
+    
+    // L3: IP (convert directly without inet_ntoa)
+    packet.src_ip = IPToString(ip_header->saddr);
+    packet.dst_ip = IPToString(ip_header->daddr);
+    
+    packet.protocol = ip_header->protocol;
+    
+    int ip_header_len = ip_header->ihl * 4;
+    
+    // L4: Ports
+    if (packet.protocol == IPPROTO_TCP && len >= ip_header_len + sizeof(struct tcphdr)) {
+        struct tcphdr* tcp_header = (struct tcphdr*)(data + ip_header_len);
+        packet.src_port = ntohs(tcp_header->source);
+        packet.dst_port = ntohs(tcp_header->dest);
+        
+        // Build TCP flags
+        packet.tcp_flags = 0;
+        if (tcp_header->syn) packet.tcp_flags |= 0x02;
+        if (tcp_header->ack) packet.tcp_flags |= 0x10;
+        if (tcp_header->fin) packet.tcp_flags |= 0x01;
+        if (tcp_header->rst) packet.tcp_flags |= 0x04;
+        if (tcp_header->psh) packet.tcp_flags |= 0x08;
+        if (tcp_header->urg) packet.tcp_flags |= 0x20;
+        
+        packet.tcp_seq = ntohl(tcp_header->seq);
+    } else if (packet.protocol == IPPROTO_UDP && len >= ip_header_len + sizeof(struct udphdr)) {
+        struct udphdr* udp_header = (struct udphdr*)(data + ip_header_len);
+        packet.src_port = ntohs(udp_header->source);
+        packet.dst_port = ntohs(udp_header->dest);
+    } else {
+        packet.src_port = 0;
+        packet.dst_port = 0;
+    }
+    
+    return true;
+}
+
+// ============================================================
+// NFQUEUE CALLBACK (INLINE PROCESSING)
+// ============================================================
+static int PacketCallback(struct nfq_q_handle *qh,
+                         struct nfgenmsg *nfmsg,
+                         struct nfq_data *nfa,
+                         void *data) {
+    
+    // Get packet ID
+    struct nfqnl_msg_packet_hdr *packet_hdr = nfq_get_msg_packet_hdr(nfa);
+    if (!packet_hdr) {
+        return nfq_set_verdict(qh, 0, NF_ACCEPT, 0, nullptr);
+    }
+    
+    uint32_t nfq_id = ntohl(packet_hdr->packet_id);
+    
+    // Get packet payload
+    unsigned char *packet_data;
+    int packet_len = nfq_get_payload(nfa, &packet_data);
+    if (packet_len < 0) {
+        return nfq_set_verdict(qh, nfq_id, NF_ACCEPT, 0, nullptr);
+    }
+    
+    // Parse packet data
+    PacketData parsed_packet;
+    if (!ParsePacketData(packet_data, packet_len, parsed_packet)) {
+        return nfq_set_verdict(qh, nfq_id, NF_ACCEPT, 0, nullptr);
+    }
+    
+    // INLINE FILTERING with TCP reassembly
+    FilterResult result = g_engine->FilterPacketWithRawData(
+        packet_data,
+        packet_len,
+        parsed_packet
+    );
+    
+    // Set verdict IMMEDIATELY (no queue, no async)
+    uint32_t verdict = (result.action == RuleAction::DROP) ? NF_DROP : NF_ACCEPT;
+    
+    return nfq_set_verdict(qh, nfq_id, verdict, 0, nullptr);
+}
+
+// ============================================================
 // MAIN ENTRY POINT
 // ============================================================
 int main(int argc, char* argv[]) {
@@ -183,40 +327,143 @@ int main(int argc, char* argv[]) {
     std::cout << "\n";
     std::cout << "🐯 ========================================== 🦊\n";
     std::cout << "   Tiger-Fox C++ Network Filtering System\n";
-    std::cout << "   Hybrid Multi-Worker Architecture\n";
+    std::cout << "   Stream-Inline Architecture (Zero-Latency)\n";
     std::cout << "🐯 ========================================== 🦊\n";
     std::cout << "\n";
     
+    // Setup signal handlers
+    signal(SIGINT, SignalHandler);
+    signal(SIGTERM, SignalHandler);
+    
     try {
-        // Create and initialize Tiger-Fox system
-        TigerSystem tiger_system(
-            args.rules_file,
-            args.queue_num,
-            args.num_workers,
-            args.debug_mode
-        );
+        // ============================================================
+        // LOAD RULES
+        // ============================================================
+        std::cout << "📋 Loading rules from " << args.rules_file << "..." << std::endl;
         
-        // Initialize system
-        if (!tiger_system.Initialize()) {
-            std::cerr << "❌ Error: Failed to initialize Tiger-Fox system\n";
+        auto rules = RuleLoader::LoadRules(args.rules_file);
+        
+        if (rules.empty()) {
+            std::cerr << "❌ Error: No rules loaded\n";
             return EXIT_FAILURE;
         }
         
-        // Run system (blocks until Ctrl+C or SIGTERM)
-        tiger_system.Run();
+        // ============================================================
+        // CREATE ENGINE
+        // ============================================================
+        std::cout << "\n🚀 Creating StreamInlineEngine..." << std::endl;
         
-        // Shutdown (called automatically by destructor, but explicit is good)
-        tiger_system.Shutdown();
+        g_engine = std::make_unique<StreamInlineEngine>(rules, args.max_tcp_streams);
+        
+        std::cout << std::endl;
+        
+        // ============================================================
+        // SETUP NFQUEUE
+        // ============================================================
+        std::cout << "🔧 Opening NFQUEUE (queue " << args.queue_num << ")..." << std::endl;
+        
+        g_nfq_handle = nfq_open();
+        if (!g_nfq_handle) {
+            std::cerr << "❌ Error: Failed to open NFQUEUE\n";
+            return EXIT_FAILURE;
+        }
+        
+        // Unbind existing handler (if any)
+        if (nfq_unbind_pf(g_nfq_handle, AF_INET) < 0) {
+            std::cout << "⚠️  Could not unbind existing NFQUEUE handler (may be OK)\n";
+        }
+        
+        // Bind to AF_INET
+        if (nfq_bind_pf(g_nfq_handle, AF_INET) < 0) {
+            nfq_close(g_nfq_handle);
+            std::cerr << "❌ Error: Failed to bind NFQUEUE to AF_INET\n";
+            return EXIT_FAILURE;
+        }
+        
+        // Create queue
+        g_queue_handle = nfq_create_queue(g_nfq_handle, args.queue_num, &PacketCallback, nullptr);
+        if (!g_queue_handle) {
+            nfq_close(g_nfq_handle);
+            std::cerr << "❌ Error: Failed to create NFQUEUE\n";
+            return EXIT_FAILURE;
+        }
+        
+        // Set queue mode (copy full packet)
+        if (nfq_set_mode(g_queue_handle, NFQNL_COPY_PACKET, 0xFFFF) < 0) {
+            nfq_destroy_queue(g_queue_handle);
+            nfq_close(g_nfq_handle);
+            std::cerr << "❌ Error: Failed to set NFQUEUE mode\n";
+            return EXIT_FAILURE;
+        }
+        
+        // Get socket fd
+        int socket_fd = nfq_fd(g_nfq_handle);
+        
+        std::cout << "✅ NFQUEUE ready on queue " << args.queue_num << std::endl;
+        std::cout << "\n📡 Processing packets INLINE (press Ctrl+C to stop)...\n" << std::endl;
+        
+        // ============================================================
+        // MAIN LOOP (INLINE PROCESSING)
+        // ============================================================
+        char buffer[4096] __attribute__((aligned(4)));
+        
+        while (g_running) {
+            int received = recv(socket_fd, buffer, sizeof(buffer), 0);
+            
+            if (received < 0) {
+                if (errno == EINTR) continue;  // Signal interrupted
+                std::cerr << "❌ recv() error: " << strerror(errno) << std::endl;
+                break;
+            }
+            
+            // Process packet INLINE (callback returns verdict immediately)
+            nfq_handle_packet(g_nfq_handle, buffer, received);
+            
+            // Periodically cleanup expired TCP streams (every 1000 packets)
+            static int packet_count = 0;
+            if (++packet_count >= 1000) {
+                g_engine->CleanupExpiredStreams();
+                packet_count = 0;
+            }
+        }
+        
+        std::cout << "\n🛑 Shutting down..." << std::endl;
+        
+        // ============================================================
+        // CLEANUP
+        // ============================================================
+        if (g_queue_handle) {
+            nfq_destroy_queue(g_queue_handle);
+        }
+        
+        if (g_nfq_handle) {
+            nfq_unbind_pf(g_nfq_handle, AF_INET);
+            nfq_close(g_nfq_handle);
+        }
+        
+        // Print statistics
+        std::cout << "\n";
+        g_engine->PrintPerformanceStats();
         
         std::cout << "\n✅ Tiger-Fox terminated successfully\n" << std::endl;
         return EXIT_SUCCESS;
         
     } catch (const std::exception& e) {
         std::cerr << "\n❌ Fatal error: " << e.what() << "\n" << std::endl;
+        
+        // Cleanup on error
+        if (g_queue_handle) nfq_destroy_queue(g_queue_handle);
+        if (g_nfq_handle) nfq_close(g_nfq_handle);
+        
         return EXIT_FAILURE;
         
     } catch (...) {
         std::cerr << "\n❌ Fatal error: Unknown exception\n" << std::endl;
+        
+        // Cleanup on error
+        if (g_queue_handle) nfq_destroy_queue(g_queue_handle);
+        if (g_nfq_handle) nfq_close(g_nfq_handle);
+        
         return EXIT_FAILURE;
     }
 }
