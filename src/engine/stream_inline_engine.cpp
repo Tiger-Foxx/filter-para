@@ -403,24 +403,32 @@ FilterResult StreamInlineEngine::FilterPacketWithRawData(
     
     HighResTimer l7_timer;
     
-    // Process with TCP reassembler
-    auto http_data = tcp_reassembler_->ProcessPacket(raw_data, raw_len, 
-                                                     const_cast<PacketData&>(packet));
-    
-    if (http_data && http_data->is_complete) {
-        // We have a complete HTTP request - check L7 rules
-        std::string matched_rule;
-        if (MatchHTTPPatterns(*http_data, matched_rule)) {
-            // Block the entire connection
-            {
-                std::lock_guard<std::mutex> lock(blocked_connections_mutex_);
-                blocked_connections_[conn_key] = {time(nullptr), matched_rule};
+    try {
+        // Process with TCP reassembler
+        auto http_data = tcp_reassembler_->ProcessPacket(raw_data, raw_len, 
+                                                         const_cast<PacketData&>(packet));
+        
+        if (http_data && http_data->is_complete) {
+            // We have a complete HTTP request - check L7 rules
+            std::string matched_rule;
+            if (MatchHTTPPatterns(*http_data, matched_rule)) {
+                // Block the entire connection
+                {
+                    std::lock_guard<std::mutex> lock(blocked_connections_mutex_);
+                    blocked_connections_[conn_key] = {time(nullptr), matched_rule};
+                }
+                
+                l7_drops_.fetch_add(1, std::memory_order_relaxed);
+                dropped_packets_.fetch_add(1, std::memory_order_relaxed);
+                return FilterResult(RuleAction::DROP, matched_rule, l7_timer.ElapsedMillis(), RuleLayer::L7);
             }
-            
-            l7_drops_.fetch_add(1, std::memory_order_relaxed);
-            dropped_packets_.fetch_add(1, std::memory_order_relaxed);
-            return FilterResult(RuleAction::DROP, matched_rule, l7_timer.ElapsedMillis(), RuleLayer::L7);
         }
+    } catch (const std::exception& e) {
+        std::cerr << "❌ Error in TCP reassembler: " << e.what() << std::endl;
+        // Continue processing - don't crash
+    } catch (...) {
+        std::cerr << "❌ Unknown error in TCP reassembler" << std::endl;
+        // Continue processing - don't crash
     }
     
     // ACCEPT (passed all checks)
