@@ -270,26 +270,41 @@ static int PacketCallback(struct nfq_q_handle *qh,
                          struct nfq_data *nfa,
                          void *data) {
     
+    static std::atomic<uint64_t> callback_count{0};
+    uint64_t pkt_num = callback_count.fetch_add(1) + 1;
+    
+    std::cout << "[DEBUG] 📦 PacketCallback called (packet #" << pkt_num << ")" << std::endl;
+    
     // Get packet ID
     struct nfqnl_msg_packet_hdr *packet_hdr = nfq_get_msg_packet_hdr(nfa);
     if (!packet_hdr) {
+        std::cout << "[DEBUG] ⚠️  No packet header, ACCEPTING" << std::endl;
         return nfq_set_verdict(qh, 0, NF_ACCEPT, 0, nullptr);
     }
     
     uint32_t nfq_id = ntohl(packet_hdr->packet_id);
+    std::cout << "[DEBUG] 📋 Packet ID: " << nfq_id << std::endl;
     
     // Get packet payload
     unsigned char *packet_data;
     int packet_len = nfq_get_payload(nfa, &packet_data);
     if (packet_len < 0) {
+        std::cout << "[DEBUG] ⚠️  Invalid payload, ACCEPTING" << std::endl;
         return nfq_set_verdict(qh, nfq_id, NF_ACCEPT, 0, nullptr);
     }
+    
+    std::cout << "[DEBUG] 📏 Payload length: " << packet_len << " bytes" << std::endl;
     
     // Parse packet data
     PacketData parsed_packet;
     if (!ParsePacketData(packet_data, packet_len, parsed_packet)) {
+        std::cout << "[DEBUG] ⚠️  Parse failed, ACCEPTING" << std::endl;
         return nfq_set_verdict(qh, nfq_id, NF_ACCEPT, 0, nullptr);
     }
+    
+    std::cout << "[DEBUG] 🔍 Parsed: " << parsed_packet.src_ip << ":" << parsed_packet.src_port 
+              << " → " << parsed_packet.dst_ip << ":" << parsed_packet.dst_port 
+              << " (proto=" << (int)parsed_packet.protocol << ")" << std::endl;
     
     // INLINE FILTERING with TCP reassembly
     FilterResult result = g_engine->FilterPacketWithRawData(
@@ -300,6 +315,12 @@ static int PacketCallback(struct nfq_q_handle *qh,
     
     // Set verdict IMMEDIATELY (no queue, no async)
     uint32_t verdict = (result.action == RuleAction::DROP) ? NF_DROP : NF_ACCEPT;
+    
+    if (verdict == NF_DROP) {
+        std::cout << "[DEBUG] ❌ DROPPING packet #" << pkt_num << " (rule: " << result.rule_id << ")" << std::endl;
+    } else {
+        std::cout << "[DEBUG] ✅ ACCEPTING packet #" << pkt_num << std::endl;
+    }
     
     return nfq_set_verdict(qh, nfq_id, verdict, 0, nullptr);
 }
@@ -407,14 +428,21 @@ int main(int argc, char* argv[]) {
         // ============================================================
         char buffer[4096] __attribute__((aligned(4)));
         
+        std::cout << "[DEBUG] 🔁 Entering main receive loop (socket_fd=" << socket_fd << ")..." << std::endl;
+        
         while (g_running) {
             int received = recv(socket_fd, buffer, sizeof(buffer), 0);
             
             if (received < 0) {
-                if (errno == EINTR) continue;  // Signal interrupted
+                if (errno == EINTR) {
+                    std::cout << "[DEBUG] ⚠️  recv() interrupted by signal, continuing..." << std::endl;
+                    continue;  // Signal interrupted
+                }
                 std::cerr << "❌ recv() error: " << strerror(errno) << std::endl;
                 break;
             }
+            
+            std::cout << "[DEBUG] 📥 Received " << received << " bytes from NFQUEUE" << std::endl;
             
             // Process packet INLINE (callback returns verdict immediately)
             nfq_handle_packet(g_nfq_handle, buffer, received);
