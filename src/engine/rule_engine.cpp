@@ -81,6 +81,7 @@ RuleEngine::RuleEngine(const std::unordered_map<RuleLayer, std::vector<std::uniq
             rule_copy->id = rule->id;
             rule_copy->layer = rule->layer;
             rule_copy->type = rule->type;
+            rule_copy->type_str = rule->type_str;  // ✅ FIXED: Copy type_str!
             rule_copy->action = rule->action;
             rule_copy->values = rule->values;
             rule_copy->field = rule->field;
