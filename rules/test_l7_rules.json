@@ -1,0 +1,54 @@
+{
+  "rules": [
+    {
+      "id": "block_tor_ips",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["192.42.116.0/24", "199.87.154.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ssh_brute",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": ["22"],
+      "action": "drop"
+    },
+    {
+      "id": "block_sqli_attempts",
+      "layer": 7,
+      "type": "http_uri_regex",
+      "values": ["(?i)(union|select|insert|drop).*from", "(?i)or.*1.*=.*1"],
+      "action": "drop"
+    },
+    {
+      "id": "block_xss_payload",
+      "layer": 7,
+      "type": "http_uri_regex", 
+      "values": ["(?i)<script.*>", "(?i)javascript:", "(?i)onload.*="],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_ua",
+      "layer": 7,
+      "type": "http_header_contains",
+      "field": "user-agent",
+      "values": ["sqlmap", "nmap", "masscan", "nikto", "burp"],
+      "action": "drop"
+    },
+    {
+      "id": "block_path_traversal",
+      "layer": 7,
+      "type": "http_uri_contains",
+      "values": ["../", "..\\"],
+      "action": "drop"
+    },
+    {
+      "id": "block_dangerous_methods",
+      "layer": 7,
+      "type": "http_method",
+      "values": ["PUT", "DELETE", "TRACE", "CONNECT"],
+      "action": "drop"
+    }
+  ]
+}

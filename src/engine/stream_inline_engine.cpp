@@ -55,26 +55,38 @@ void StreamInlineEngine::BuildOptimizedIndex() {
 }
 
 void StreamInlineEngine::IndexL3Rules() {
-    if (!rules_by_layer_.count(RuleLayer::L3)) return;
+    if (!rules_by_layer_.count(RuleLayer::L3)) {
+        std::cout << "⚠️  No L3 rules found in rules_by_layer_" << std::endl;
+        return;
+    }
+    
+    std::cout << "🔍 Indexing L3 rules (" << rules_by_layer_.at(RuleLayer::L3).size() << " total)..." << std::endl;
     
     for (const auto& rule : rules_by_layer_.at(RuleLayer::L3)) {
+        std::cout << "   📋 Rule: " << rule->id << " (type: '" << rule->type_str << "')" << std::endl;
+        
         // Handle IP source rules
         if (rule->type_str == "ip_src_in" || rule->type_str == "ip_src_range") {
+            std::cout << "      → IP source rule with " << rule->values.size() << " values" << std::endl;
             for (const auto& value : rule->values) {
+                std::cout << "         • Value: '" << value << "'" << std::endl;
                 if (value.find('/') != std::string::npos) {
                     // CIDR range
                     auto [network, mask] = ParseCIDR(value);
                     blocked_src_ip_ranges_.push_back({network, mask});
+                    std::cout << "           ✓ Added as CIDR range" << std::endl;
                 } else {
                     // Exact IP
                     uint32_t ip = IPStringToUint32(value);
                     blocked_src_ips_.insert(ip);
+                    std::cout << "           ✓ Added as exact IP" << std::endl;
                 }
             }
         }
         
         // Handle IP destination rules
-        if (rule->type_str == "ip_dst_in" || rule->type_str == "ip_dst_range") {
+        else if (rule->type_str == "ip_dst_in" || rule->type_str == "ip_dst_range") {
+            std::cout << "      → IP destination rule with " << rule->values.size() << " values" << std::endl;
             for (const auto& value : rule->values) {
                 if (value.find('/') != std::string::npos) {
                     // CIDR range
@@ -88,39 +100,68 @@ void StreamInlineEngine::IndexL3Rules() {
             }
         }
         
-        // Note: ip_src_country / ip_dst_country not implemented yet
-        // Would require GeoIP database integration
+        // Skip GeoIP rules (not implemented)
+        else if (rule->type_str == "ip_src_country" || rule->type_str == "ip_dst_country") {
+            std::cout << "      ⚠️  GeoIP rule skipped (not implemented)" << std::endl;
+        }
+        
+        else {
+            std::cout << "      ⚠️  Unknown L3 rule type: '" << rule->type_str << "'" << std::endl;
+        }
     }
 }
 
 void StreamInlineEngine::IndexL4Rules() {
-    if (!rules_by_layer_.count(RuleLayer::L4)) return;
+    if (!rules_by_layer_.count(RuleLayer::L4)) {
+        std::cout << "⚠️  No L4 rules found in rules_by_layer_" << std::endl;
+        return;
+    }
+    
+    std::cout << "🔍 Indexing L4 rules (" << rules_by_layer_.at(RuleLayer::L4).size() << " total)..." << std::endl;
     
     for (const auto& rule : rules_by_layer_.at(RuleLayer::L4)) {
+        std::cout << "   📋 Rule: " << rule->id << " (type: '" << rule->type_str << "')" << std::endl;
+        
         // Source port rules
         if (rule->type_str == "tcp_src_port" || rule->type_str == "udp_src_port") {
+            std::cout << "      → Source port rule with " << rule->values.size() << " values" << std::endl;
             for (const auto& value : rule->values) {
                 uint16_t port = static_cast<uint16_t>(std::stoi(value));
                 blocked_src_ports_.insert(port);
+                std::cout << "         • Added port: " << port << std::endl;
             }
         }
         
         // Destination port rules
-        if (rule->type_str == "tcp_dst_port" || rule->type_str == "udp_dst_port") {
+        else if (rule->type_str == "tcp_dst_port" || rule->type_str == "udp_dst_port") {
+            std::cout << "      → Destination port rule with " << rule->values.size() << " values" << std::endl;
             for (const auto& value : rule->values) {
                 uint16_t port = static_cast<uint16_t>(std::stoi(value));
                 blocked_dst_ports_.insert(port);
+                std::cout << "         • Added port: " << port << std::endl;
             }
+        }
+        
+        else {
+            std::cout << "      ⚠️  Unknown L4 rule type: '" << rule->type_str << "'" << std::endl;
         }
     }
 }
 
 void StreamInlineEngine::IndexL7Rules() {
-    if (!rules_by_layer_.count(RuleLayer::L7)) return;
+    if (!rules_by_layer_.count(RuleLayer::L7)) {
+        std::cout << "⚠️  No L7 rules found in rules_by_layer_" << std::endl;
+        return;
+    }
+    
+    std::cout << "🔍 Indexing L7 rules (" << rules_by_layer_.at(RuleLayer::L7).size() << " total)..." << std::endl;
     
     for (const auto& rule : rules_by_layer_.at(RuleLayer::L7)) {
+        std::cout << "   📋 Rule: " << rule->id << " (type: '" << rule->type_str << "')" << std::endl;
+        
         // HTTP URI regex patterns
         if (rule->type_str == "http_uri_regex") {
+            std::cout << "      → HTTP URI regex with " << rule->values.size() << " patterns" << std::endl;
             for (const auto& pattern_str : rule->values) {
                 auto compiled_pattern = std::make_unique<CompiledPattern>();
                 compiled_pattern->rule_id = rule->id;
