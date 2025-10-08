@@ -79,17 +79,27 @@ int main(int argc, char* argv[]) {
     std::cout << "📋 Loading rules from " << rules_file << "..." << std::endl;
     
     RuleLoader loader;
-    auto rules = loader.LoadFromFile(rules_file);
+    auto rules = RuleLoader::LoadRules(rules_file);
     
     if (rules.empty()) {
         std::cerr << "❌ No rules loaded!" << std::endl;
         return 1;
     }
     
-    std::cout << "✅ Loaded " << loader.GetTotalRuleCount() << " rules:" << std::endl;
-    std::cout << "   • L3 (Network):     " << loader.GetRuleCount(RuleLayer::L3) << std::endl;
-    std::cout << "   • L4 (Transport):   " << loader.GetRuleCount(RuleLayer::L4) << std::endl;
-    std::cout << "   • L7 (Application): " << loader.GetRuleCount(RuleLayer::L7) << std::endl;
+    // Count rules manually
+    size_t total_rules = 0;
+    size_t l3_rules = 0, l4_rules = 0, l7_rules = 0;
+    for (const auto& [layer, layer_rules] : rules) {
+        total_rules += layer_rules.size();
+        if (layer == RuleLayer::L3) l3_rules = layer_rules.size();
+        else if (layer == RuleLayer::L4) l4_rules = layer_rules.size();
+        else if (layer == RuleLayer::L7) l7_rules = layer_rules.size();
+    }
+    
+    std::cout << "✅ Loaded " << total_rules << " rules:" << std::endl;
+    std::cout << "   • L3 (Network):     " << l3_rules << std::endl;
+    std::cout << "   • L4 (Transport):   " << l4_rules << std::endl;
+    std::cout << "   • L7 (Application): " << l7_rules << std::endl;
     std::cout << std::endl;
     
     // ============================================================

@@ -5,6 +5,10 @@
 #include <atomic>
 #include <array>
 #include <memory>
+#include <unordered_set>
+#include <vector>
+#include <string>
+#include <pcre2.h>
 
 // ============================================================
 // 🚀 ULTRA FAST ENGINE - Zero-Copy, Lock-Free, Inline
@@ -35,7 +39,7 @@ private:
     
     // L3: IP filtering
     std::unordered_set<uint32_t> blocked_ips_;           // Exact IPs
-    std::vector<IPRange> blocked_ip_ranges_;              // CIDR ranges
+    std::vector<Rule::IPRange> blocked_ip_ranges_;              // CIDR ranges
     
     // L4: Port filtering  
     std::unordered_set<uint16_t> blocked_src_ports_;

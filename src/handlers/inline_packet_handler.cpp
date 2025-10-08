@@ -229,7 +229,14 @@ bool InlinePacketHandler::ParsePacketInline(unsigned char* data, int len, Packet
         struct tcphdr* tcp_header = (struct tcphdr*)(data + ip_header_len);
         packet.src_port = ntohs(tcp_header->source);
         packet.dst_port = ntohs(tcp_header->dest);
-        packet.tcp_flags = tcp_header->th_flags;
+        // Build TCP flags manually (Linux tcphdr doesn't have th_flags)
+        packet.tcp_flags = 0;
+        if (tcp_header->syn) packet.tcp_flags |= 0x02;
+        if (tcp_header->ack) packet.tcp_flags |= 0x10;
+        if (tcp_header->fin) packet.tcp_flags |= 0x01;
+        if (tcp_header->rst) packet.tcp_flags |= 0x04;
+        if (tcp_header->psh) packet.tcp_flags |= 0x08;
+        if (tcp_header->urg) packet.tcp_flags |= 0x20;
         packet.tcp_seq = ntohl(tcp_header->seq);
     } else if (packet.protocol == IPPROTO_UDP && len >= ip_header_len + sizeof(struct udphdr)) {
         struct udphdr* udp_header = (struct udphdr*)(data + ip_header_len);

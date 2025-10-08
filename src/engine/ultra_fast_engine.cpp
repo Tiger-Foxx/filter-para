@@ -3,6 +3,7 @@
 #include <iostream>
 #include <algorithm>
 #include <arpa/inet.h>
+#include <pcre2.h>
 
 // ============================================================
 // CONSTRUCTOR
@@ -39,7 +40,7 @@ void UltraFastEngine::BuildOptimizedIndex() {
                     if (value.find('/') != std::string::npos) {
                         // CIDR range
                         auto [network, mask] = ParseCIDR(value);
-                        blocked_ip_ranges_.push_back({network, mask, rule->id});
+                        blocked_ip_ranges_.push_back({network, mask});
                     } else {
                         // Exact IP
                         uint32_t ip = IPStringToUint32(value);
