@@ -121,9 +121,6 @@ private:
     std::unordered_map<ConnectionKey, BlockedConnectionInfo, ConnectionKeyHash> blocked_connections_;
     std::mutex blocked_connections_mutex_;
     
-    // Cleanup old blocked connections (called periodically)
-    void CleanupExpiredBlockedConnections();
-    
     // Performance flags
     std::atomic<bool> index_built_{false};
     
