@@ -407,8 +407,8 @@ int main(int argc, char* argv[]) {
         // Get socket fd
         int socket_fd = nfq_fd(g_nfq_handle);
         
-        // Increase socket buffer size for high throughput
-        int sock_buf_size = 16 * 1024 * 1024;  // 16 MB
+        // Increase socket buffer size for very high throughput
+        int sock_buf_size = 128 * 1024 * 1024;  // 128 MB
         if (setsockopt(socket_fd, SOL_SOCKET, SO_RCVBUF, &sock_buf_size, sizeof(sock_buf_size)) < 0) {
             std::cout << "⚠️  Warning: Could not increase socket buffer size\n";
         } else {
@@ -455,9 +455,9 @@ int main(int argc, char* argv[]) {
             // Process packet INLINE (callback returns verdict immediately)
             nfq_handle_packet(g_nfq_handle, buffer, received);
             
-            // Periodically cleanup expired TCP streams (every 100 packets for high load)
+            // Periodically cleanup expired TCP streams (every 50 packets for very high load)
             static int packet_count = 0;
-            if (++packet_count >= 100) {
+            if (++packet_count >= 50) {
                 g_engine->CleanupExpiredStreams();
                 packet_count = 0;
             }

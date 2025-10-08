@@ -17,8 +17,8 @@ StreamInlineEngine::StreamInlineEngine(
     
     std::cout << "🚀 Initializing StreamInlineEngine (High-Performance WAF)" << std::endl;
     
-    // Create TCP reassembler
-    tcp_reassembler_ = std::make_unique<TCPReassembler>(max_tcp_streams, 30);
+    // Create TCP reassembler with shorter timeout for high-load scenarios (5 seconds)
+    tcp_reassembler_ = std::make_unique<TCPReassembler>(max_tcp_streams, 5);
     
     // Build optimized indexes
     BuildOptimizedIndex();
