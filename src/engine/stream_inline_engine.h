@@ -3,6 +3,7 @@
 
 #include "rule_engine.h"
 #include "../handlers/tcp_reassembler.h"
+#include "../utils/iptables_manager.h"
 
 #include <unordered_set>
 #include <unordered_map>
@@ -152,10 +153,14 @@ private:
     // TCP Reassembler (streaming mode)
     std::unique_ptr<TCPReassembler> tcp_reassembler_;
     
+    // IPTables Dynamic Blocking Manager
+    std::unique_ptr<IPTablesManager> iptables_manager_;
+    
     // Blocked connections tracking (using ConnectionKey defined above)
     struct BlockedConnectionInfo {
         time_t blocked_at;      // Timestamp when blocked
         std::string rule_id;    // Which rule triggered the block
+        std::string src_ip;     // Source IP for iptables blocking
     };
     
     std::unordered_map<ConnectionKey, BlockedConnectionInfo, ConnectionKeyHash> blocked_connections_;

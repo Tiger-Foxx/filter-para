@@ -54,7 +54,7 @@ if(NOT PCRE2_FOUND)
     message(FATAL_ERROR "libpcre2 not found. Install with: sudo apt install libpcre2-dev")
 endif()
 
-# Source files for STREAM-INLINE version (V2.0 - optimized)
+# Source files for STREAM-INLINE version (V2.0 - optimized with dynamic iptables)
 set(STREAM_INLINE_SOURCES
     src/main.cpp
     src/utils.cpp
@@ -62,6 +62,7 @@ set(STREAM_INLINE_SOURCES
     src/engine/stream_inline_engine.cpp
     src/handlers/tcp_reassembler.cpp
     src/loaders/rule_loader.cpp
+    src/utils/iptables_manager.cpp
 )
 
 # Headers

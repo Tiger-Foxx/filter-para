@@ -17,11 +17,17 @@ StreamInlineEngine::StreamInlineEngine(
     size_t num_workers)
     : RuleEngine(rules), num_workers_(num_workers) {
     
-    std::cout << "🚀 Initializing HYBRID Ultra-Fast Engine" << std::endl;
+    std::cout << "🚀 Initializing HYBRID Ultra-Fast Engine with Dynamic IPTables Blocking" << std::endl;
     std::cout << "   Architecture: Inline L3/L4 + " << num_workers << " Workers for L7" << std::endl;
     
     // Create TCP reassembler with shorter timeout (5 seconds)
     tcp_reassembler_ = std::make_unique<TCPReassembler>(max_tcp_streams, 5);
+    
+    // Initialize IPTables Manager for dynamic blocking
+    iptables_manager_ = std::make_unique<IPTablesManager>();
+    if (!iptables_manager_->Initialize()) {
+        std::cerr << "⚠️  Warning: IPTables dynamic blocking disabled (need root?)" << std::endl;
+    }
     
     // Build optimized indexes
     BuildOptimizedIndex();
@@ -660,10 +666,24 @@ FilterResult StreamInlineEngine::ProcessL7InWorker(L7WorkItem* item) {
             // Check L7 rules
             std::string matched_rule;
             if (MatchHTTPPatterns(*http_data, matched_rule)) {
-                // Block the entire connection
+                // ============================================================
+                // ATTACK DETECTED! Block the source IP via IPTables
+                // ============================================================
+                
+                // Block via iptables (kernel-level blocking)
+                if (iptables_manager_) {
+                    std::string reason = "L7_ATTACK: " + matched_rule;
+                    iptables_manager_->BlockIP(item->conn_key.src_ip, reason);
+                }
+                
+                // Also track in connection table for stats
                 {
                     std::lock_guard<std::mutex> lock(blocked_connections_mutex_);
-                    blocked_connections_[item->conn_key] = {time(nullptr), matched_rule};
+                    blocked_connections_[item->conn_key] = {
+                        time(nullptr), 
+                        matched_rule,
+                        item->conn_key.src_ip
+                    };
                 }
                 
                 l7_drops_.fetch_add(1, std::memory_order_relaxed);
@@ -690,5 +710,10 @@ void StreamInlineEngine::PrintPerformanceStats() const {
     
     if (tcp_reassembler_) {
         tcp_reassembler_->PrintStats();
+    }
+    
+    if (iptables_manager_) {
+        std::cout << "\n📊 IPTables Dynamic Blocking Statistics:" << std::endl;
+        std::cout << "   IPs blocked via iptables: " << iptables_manager_->GetBlockedCount() << std::endl;
     }
 }
