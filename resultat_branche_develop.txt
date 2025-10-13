@@ -65,11 +65,129 @@ Transfer/sec:    561.71KB
 
 // POUR MON TEST DE 100 SECONDES :
 
+The_Fox@injector:~$ sudo wrk -t4 -c500 -d50s http://10.10.2.20
+Running 50s test @ http://10.10.2.20
+  4 threads and 500 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   189.11ms  335.03ms   1.99s    86.01%
+    Req/Sec   462.66    464.02     4.85k    91.04%
+  78019 requests in 50.05s, 27.45MB read
+  Socket errors: connect 0, read 0, write 0, timeout 2066
+Requests/sec:   1558.98
+Transfer/sec:    561.71KB
+The_Fox@injector:~$ sudo wrk -t4 -c500 -d100s http://10.10.2.20
+Running 2m test @ http://10.10.2.20
+  4 threads and 500 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   112.88ms  277.45ms   2.00s    88.44%
+    Req/Sec   430.59    736.96    12.59k    93.80%
+  73191 requests in 1.67m, 25.75MB read
+  Socket errors: connect 0, read 0, write 0, timeout 6425
+Requests/sec:    731.17
+Transfer/sec:    263.45KB
+The_Fox@injector:~$ sudo wrk -t4 -c500 -d100s http://10.10.2.20
+Running 2m test @ http://10.10.2.20
+  4 threads and 500 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    43.90ms  118.97ms   1.95s    87.65%
+    Req/Sec   386.65    531.02     5.70k    90.75%
+  54277 requests in 1.67m, 19.10MB read
+  Socket errors: connect 0, read 0, write 0, timeout 6823
+Requests/sec:    542.64
+Transfer/sec:    195.52KB
+The_Fox@injector:~$ sudo wrk -t4 -c500 -d100s http://10.10.2.20
+Running 2m test @ http://10.10.2.20
+  4 threads and 500 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    87.08ms  274.24ms   1.99s    90.81%
+    Req/Sec   413.55    672.77     5.01k    89.87%
+  65059 requests in 1.67m, 22.89MB read
+  Socket errors: connect 0, read 40, write 0, timeout 4882
+Requests/sec:    649.94
+Transfer/sec:    234.18KB
+The_Fox@injector:~$ sudo wrk -t4 -c500 -d50s http://10.10.2.20
+Running 50s test @ http://10.10.2.20
+  4 threads and 500 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    48.06ms  158.82ms   1.74s    91.57%
+    Req/Sec   573.20      0.89k    8.87k    91.92%
+  53005 requests in 50.10s, 18.65MB read
+  Socket errors: connect 0, read 0, write 0, timeout 2678
+Requests/sec:   1058.04
+Transfer/sec:    381.22KB
+The_Fox@injector:~$ sudo wrk -t4 -c500 -d50s http://10.10.2.20
+Running 50s test @ http://10.10.2.20
+  4 threads and 500 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    65.78ms  268.90ms   1.93s    94.49%
+    Req/Sec   420.71      1.00k    7.02k    94.55%
+  8331 requests in 50.09s, 2.93MB read
+  Socket errors: connect 0, read 0, write 0, timeout 1382
+Requests/sec:    166.32
+Transfer/sec:     59.93KB
+The_Fox@injector:~$ sudo wrk -t4 -c500 -d50s http://10.10.2.20
+Running 50s test @ http://10.10.2.20
+  4 threads and 500 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    54.64ms  222.76ms   1.99s    93.78%
+    Req/Sec   636.74      1.24k    9.72k    90.61%
+  21935 requests in 50.02s, 7.72MB read
+  Socket errors: connect 0, read 0, write 0, timeout 887
+Requests/sec:    438.54
+Transfer/sec:    158.01KB
 
 
+he_Fox@injector:~$ sudo wrk -t4 -c500 -d200s http://10.10.2.20
+Running 3m test @ http://10.10.2.20
+  4 threads and 500 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    22.73ms  117.54ms   1.88s    96.01%
+    Req/Sec   221.43    630.69     5.96k    91.46%
+  36533 requests in 3.33m, 12.86MB read
+  Socket errors: connect 0, read 4, write 0, timeout 15787
+Requests/sec:    182.59
+Transfer/sec:     65.79KB
+The_Fox@injector:~$ 
 
 
+The_Fox@injector:~$ sudo wrk -t4 -c500 -d50s http://10.10.2.20
+Running 50s test @ http://10.10.2.20
+  4 threads and 500 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    67.21ms  264.50ms   1.77s    93.08%
+    Req/Sec   580.02      1.24k   11.37k    90.09%
+  20195 requests in 50.10s, 7.11MB read
+  Socket errors: connect 0, read 0, write 0, timeout 1670
+Requests/sec:    403.10
+Transfer/sec:    145.25KB
 
 
 // POUR UN TEST DE 200 SECONDES :
+
+
+he_Fox@injector:~$ sudo wrk -t4 -c500 -d200s http://10.10.2.20
+Running 3m test @ http://10.10.2.20
+  4 threads and 500 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    22.73ms  117.54ms   1.88s    96.01%
+    Req/Sec   221.43    630.69     5.96k    91.46%
+  36533 requests in 3.33m, 12.86MB read
+  Socket errors: connect 0, read 4, write 0, timeout 15787
+Requests/sec:    182.59
+Transfer/sec:     65.79KB
+The_Fox@injector:~$ 
+
+
+The_Fox@injector:~$ sudo wrk -t4 -c500 -d50s http://10.10.2.20
+Running 50s test @ http://10.10.2.20
+  4 threads and 500 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    67.21ms  264.50ms   1.77s    93.08%
+    Req/Sec   580.02      1.24k   11.37k    90.09%
+  20195 requests in 50.10s, 7.11MB read
+  Socket errors: connect 0, read 0, write 0, timeout 1670
+Requests/sec:    403.10
+Transfer/sec:    145.25KB
+
+
 
