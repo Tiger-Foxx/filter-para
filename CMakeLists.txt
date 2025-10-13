@@ -54,8 +54,8 @@ if(NOT PCRE2_FOUND)
     message(FATAL_ERROR "libpcre2 not found. Install with: sudo apt install libpcre2-dev")
 endif()
 
-# Source files for ORIGINAL version
-set(ORIGINAL_SOURCES
+# Source files
+set(SOURCES
     src/main.cpp
     src/tiger_system.cpp
     src/utils.cpp
@@ -67,27 +67,14 @@ set(ORIGINAL_SOURCES
     src/loaders/rule_loader.cpp
 )
 
-# Source files for ULTRA FAST version (single-threaded, zero-copy)
-set(ULTRA_FAST_SOURCES
-    src/main_ultra_fast.cpp
-    src/utils.cpp
-    src/engine/rule_engine.cpp
-    src/engine/ultra_fast_engine.cpp
-    src/handlers/inline_packet_handler.cpp
-    src/loaders/rule_loader.cpp
-)
-
 # Headers
 include_directories(src)
 
-# Executable: ORIGINAL (multi-worker with TCP reassembly)
-add_executable(tiger-fox ${ORIGINAL_SOURCES})
-
-# Executable: ULTRA FAST (single-threaded inline, zero-copy)
-add_executable(tiger-fox-ultra ${ULTRA_FAST_SOURCES})
+# Executable: Tiger-Fox (multi-worker with TCP reassembly)
+add_executable(tiger-fox ${SOURCES})
 
 # ============================================================
-# TIGER-FOX (ORIGINAL - Multi-worker)
+# TIGER-FOX (Multi-worker Architecture)
 # ============================================================
 target_compile_definitions(tiger-fox PRIVATE
     PCRE2_CODE_UNIT_WIDTH=8
@@ -123,49 +110,6 @@ target_compile_options(tiger-fox PRIVATE
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     target_link_options(tiger-fox PRIVATE
-        -flto
-        -Wl,--gc-sections
-    )
-endif()
-
-# ============================================================
-# TIGER-FOX-ULTRA (Single-threaded, Zero-Copy, Lock-Free)
-# ============================================================
-target_compile_definitions(tiger-fox-ultra PRIVATE
-    PCRE2_CODE_UNIT_WIDTH=8
-    TIGER_FOX_VERSION_MAJOR=2
-    TIGER_FOX_VERSION_MINOR=0
-    TIGER_FOX_VERSION_PATCH=0
-    TIGER_FOX_ULTRA_MODE
-    $<$<CONFIG:Debug>:TIGER_FOX_DEBUG>
-    $<$<CONFIG:Release>:TIGER_FOX_RELEASE>
-)
-
-target_link_libraries(tiger-fox-ultra
-    ${NETFILTER_QUEUE_LIBRARIES}
-    ${PCRE2_LIBRARIES}
-    Threads::Threads
-    pthread
-)
-
-if(nlohmann_json_FOUND)
-    target_link_libraries(tiger-fox-ultra nlohmann_json::nlohmann_json)
-else()
-    target_include_directories(tiger-fox-ultra PRIVATE ${NLOHMANN_JSON_INCLUDE_DIR})
-endif()
-
-target_include_directories(tiger-fox-ultra PRIVATE 
-    ${NETFILTER_QUEUE_INCLUDE_DIRS}
-    ${PCRE2_INCLUDE_DIRS}
-)
-
-target_compile_options(tiger-fox-ultra PRIVATE
-    ${NETFILTER_QUEUE_CFLAGS_OTHER}
-    ${PCRE2_CFLAGS_OTHER}
-)
-
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    target_link_options(tiger-fox-ultra PRIVATE
         -flto
         -Wl,--gc-sections
     )

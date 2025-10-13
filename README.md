@@ -11,80 +11,84 @@
 ## 🚀 Quick Start
 
 ### Install Dependencies
+
 ```bash
 sudo apt update
 sudo apt install -y build-essential cmake \
     libnetfilter-queue-dev libpcre2-dev nlohmann-json3-dev
 ```
 
-### Build ULTRA FAST Mode (Recommended)
+### Build
+
 ```bash
-chmod +x build_ultra.sh
-./build_ultra.sh
+chmod +x build.sh
+./build.sh
 ```
 
 ### Run
+
 ```bash
-sudo ./build/tiger-fox-ultra --verbose
+sudo ./build/tiger-fox --workers 8 --verbose
 ```
 
 ### Benchmark
+
 ```bash
 # In another terminal
 wrk -t 12 -c 400 -d 30s --latency http://10.10.2.20/
 ```
 
-**Expected Performance**: **2,500-5,000 req/s** 🚀
+**Expected Performance**: **600-1,200 req/s** with full L7 analysis
 
 ---
 
-## 📊 Two Modes Available
+## 📊 Architecture
 
-### Mode 1: ULTRA FAST ⚡ (Recommended)
-- **Architecture**: Single-threaded, Zero-Copy, Lock-Free
-- **Performance**: 2,500-5,000 req/s
-- **Features**: Hash tables O(1), PCRE2 JIT, Inline processing
-- **Use Case**: Production, maximum throughput
-- **Command**: `sudo ./build/tiger-fox-ultra`
+### Multi-Worker with TCP Reassembly
 
-### Mode 2: ORIGINAL 👥 (Multi-Worker)
-- **Architecture**: Multi-threaded with TCP Reassembly
-- **Performance**: 600-800 req/s
-- **Features**: Full HTTP reassembly, Complex L7 rules
-- **Use Case**: Debug, research
+- **Architecture**: Multi-threaded with Hash-based O(1) lookups
+- **Performance**: 600-1,200 req/s
+- **Features**: Full HTTP reassembly, Complete L7 analysis, FastRuleEngine with hash tables
+- **Use Case**: Production filtering with complete protocol analysis
 - **Command**: `sudo ./build/tiger-fox --workers 8`
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Detailed Architecture
 
-### ULTRA FAST Mode Architecture
+### Multi-Worker Pipeline
 
 ```
 📦 NFQUEUE (kernel)
      ↓
-🔍 ParseInline (stack allocation, zero-copy)
+🔍 PacketHandler (single-threaded receiver)
      ↓
-⚡ FilterInline (hash O(1) + PCRE2 JIT)
+🔄 Hash-based dispatch to Workers
      ↓
-✅ VerdictImmediate (direct syscall, no queue)
+👷 WorkerPool (8+ parallel workers)
+     ├─ Worker 1: FastRuleEngine + TCPReassembler
+     ├─ Worker 2: FastRuleEngine + TCPReassembler
+     ├─ Worker 3: FastRuleEngine + TCPReassembler
+     └─ ...
+     ↓
+✅ Async Verdict (non-blocking)
 ```
 
 **Key Optimizations**:
-1. ✅ **Hash Tables O(1)** - 247 L3/L4 rules indexed for instant lookup
-2. ✅ **PCRE2 JIT** - Regex compiled to native code (10x faster)
-3. ✅ **Zero-Copy** - Stack allocation, no heap malloc
-4. ✅ **Lock-Free** - Single-threaded, no mutex contention
-5. ✅ **Early Exit** - Skip HTTP responses, ICMP, DNS immediately
 
-**Performance Gains**:
-- Hash tables: +100% (vs sequential O(n))
-- PCRE2 JIT: +100% (vs interpreted regex)
-- Zero-copy: +15% (cache-friendly)
-- Lock-free: +40% (no contention)
-- Early exit: +20% (50% fewer packets)
+1. ✅ **Hash Tables O(1)** - L3/L4 rules indexed for instant lookup
+2. ✅ **PCRE2 JIT** - Regex compiled to native code
+3. ✅ **Parallel Workers** - CPU core affinity for optimal performance
+4. ✅ **TCP Reassembly** - Complete HTTP request reconstruction
+5. ✅ **Async Verdicts** - Non-blocking packet processing
+6. ✅ **Connection Tracking** - Block entire connections after first match
 
-**Total**: **82x faster** than baseline 🔥
+**Architecture Benefits**:
+
+- FastRuleEngine: O(1) lookups for common rules
+- TCP Reassembly: Detects threats split across multiple packets
+- Worker isolation: No contention between workers
+- Full L7 analysis: Complete HTTP protocol support
 
 ---
 
@@ -94,25 +98,20 @@ wrk -t 12 -c 400 -d 30s --latency http://10.10.2.20/
 filter-para/
 ├── src/
 │   ├── engine/
-│   │   ├── ultra_fast_engine.h/cpp      # 🆕 Hash + JIT engine
-│   │   ├── fast_rule_engine.h/cpp       # Original optimized
+│   │   ├── fast_rule_engine.h/cpp       # Hash-based O(1) engine
 │   │   ├── rule_engine.h/cpp            # Base class
-│   │   └── worker_pool.h/cpp            # Multi-worker (original)
+│   │   └── worker_pool.h/cpp            # Multi-worker pool
 │   ├── handlers/
-│   │   ├── inline_packet_handler.h/cpp  # 🆕 Zero-copy handler
-│   │   ├── packet_handler.h/cpp         # Original handler
+│   │   ├── packet_handler.h/cpp         # NFQUEUE handler
 │   │   └── tcp_reassembler.h/cpp        # HTTP reassembly
 │   ├── loaders/
 │   │   └── rule_loader.h/cpp            # JSON rule parser
-│   ├── main_ultra_fast.cpp              # 🆕 ULTRA main
-│   ├── main.cpp                         # Original main
+│   ├── main.cpp                         # Main entry point
 │   ├── tiger_system.h/cpp               # System orchestration
 │   └── utils.h/cpp                      # Utilities
 ├── rules/
 │   └── example_rules.json               # Rule definitions
-├── build_ultra.sh                       # 🆕 Build ULTRA
-├── build.sh                             # Build original
-├── benchmark_comparison.sh              # Compare modes
+├── build.sh                             # Build script
 ├── cleanup.sh                           # Emergency cleanup
 ├── config.json                          # Configuration
 └── README.md                            # This file
@@ -146,6 +145,7 @@ filter-para/
 ```
 
 **Rule Types**:
+
 - **L3**: `ip_src_in`, `ip_dst_in`, `ip_src_country`
 - **L4**: `tcp_src_port`, `tcp_dst_port`, `udp_src_port`, `udp_dst_port`
 - **L7**: `http_uri_regex`, `http_header_contains`, `http_method`
@@ -170,6 +170,7 @@ filter-para/
 ### IPTables (Auto-configured)
 
 The filter automatically sets up CloudLab topology rules:
+
 ```bash
 # Server → Client (responses): ACCEPT
 iptables -A FORWARD -i eno2 -o enp5s0f0 -j ACCEPT
@@ -183,36 +184,32 @@ iptables -A FORWARD -i enp5s0f0 -o eno2 -j NFQUEUE --queue-num 0
 ## 🧪 Testing & Benchmarking
 
 ### Quick Benchmark
+
 ```bash
 # Start filter
-sudo ./build/tiger-fox-ultra --verbose
+sudo ./build/tiger-fox --workers 8 --verbose
 
 # Benchmark (another terminal)
 wrk -t 12 -c 400 -d 30s --latency http://10.10.2.20/
 ```
 
-### Compare Both Modes
-```bash
-chmod +x benchmark_comparison.sh
-./benchmark_comparison.sh
-```
-
 Expected output:
+
 ```
-🚀 ULTRA FAST MODE:
-Requests/sec:   3,500.00
-Latency avg:    80ms
-Latency p99:    200ms
+� MULTI-WORKER MODE:
+Requests/sec:   800-1,200
+Latency avg:    150-250ms
+Latency p99:    400-600ms
 
-👥 ORIGINAL MODE:
-Requests/sec:   650.00
-Latency avg:    300ms
-Latency p99:    800ms
-
-📈 IMPROVEMENT: 438%
+Features:
+- ✅ Complete L7 HTTP analysis
+- ✅ TCP stream reassembly
+- ✅ Multi-packet threat detection
+- ✅ Full regex pattern matching
 ```
 
 ### Manual Testing
+
 ```bash
 # Test basic connectivity
 curl http://10.10.2.20/
@@ -231,12 +228,14 @@ Ctrl+C  # Stop filter to see statistics
 ### Filter Won't Start
 
 **Problem**: `Failed to open NFQUEUE`
+
 ```bash
 # Solution: Clean previous instances
 sudo ./cleanup.sh
 ```
 
 **Problem**: `Cannot bind to AF_INET`
+
 ```bash
 # Solution: Check if another filter is running
 sudo pkill -9 tiger-fox
@@ -246,21 +245,25 @@ sudo ./build/tiger-fox-ultra
 ### Low Performance
 
 **Check CPU usage**:
+
 ```bash
 top -p $(pgrep tiger-fox)
 ```
 
 **Check iptables rules**:
+
 ```bash
 sudo iptables -L FORWARD -v -n
 ```
 
 **Check NFQUEUE status**:
+
 ```bash
 cat /proc/net/netfilter/nfnetlink_queue
 ```
 
 **Enable verbose mode**:
+
 ```bash
 sudo ./build/tiger-fox-ultra --verbose
 ```
@@ -282,12 +285,14 @@ sudo perf report
 ### Why Single-Threaded is Faster?
 
 **Multi-threaded Problems**:
+
 - Mutex contention (workers fight for locks)
 - Cache invalidation (threads invalidate each other)
 - Context switching (kernel overhead)
 - Memory bandwidth saturation
 
 **Single-threaded Benefits**:
+
 - No locks → No contention
 - Cache-friendly → Everything in L1/L2
 - No context switching → One kernel thread
@@ -298,6 +303,7 @@ sudo perf report
 ### Hash Tables O(1) Optimization
 
 **Before** (Sequential O(n)):
+
 ```cpp
 for (const auto& rule : rules) {
     if (rule->matches(packet)) return DROP;  // 247 iterations
@@ -305,6 +311,7 @@ for (const auto& rule : rules) {
 ```
 
 **After** (Hash O(1)):
+
 ```cpp
 if (blocked_ips_.count(src_ip)) return DROP;  // 1 instruction
 ```
@@ -314,11 +321,13 @@ if (blocked_ips_.count(src_ip)) return DROP;  // 1 instruction
 ### PCRE2 JIT Compilation
 
 **Before** (Interpreted):
+
 ```cpp
 pcre2_match(pattern, uri, ...);  // Interprets regex bytecode
 ```
 
 **After** (JIT):
+
 ```cpp
 pcre2_jit_compile(pattern, PCRE2_JIT_COMPLETE);
 pcre2_jit_match(pattern, uri, ...);  // Executes native code
@@ -329,12 +338,14 @@ pcre2_jit_match(pattern, uri, ...);  // Executes native code
 ### Zero-Copy Stack Allocation
 
 **Before** (Heap):
+
 ```cpp
 auto packet = std::make_unique<PacketData>();  // malloc
 queue.push(std::move(packet));                  // copy
 ```
 
 **After** (Stack):
+
 ```cpp
 PacketData packet;  // Stack allocation
 engine->FilterPacket(packet);  // Direct processing
@@ -366,34 +377,38 @@ TARGET:        4,000+ ✅
 
 ### Bottleneck Identification
 
-| Bottleneck | Original | ULTRA FAST | Improvement |
-|------------|----------|------------|-------------|
-| **Mutex locks** | High contention | None | +40% |
-| **Packet copying** | 3 copies/packet | 0 copies | +30% |
-| **L3/L4 rules** | O(n) sequential | O(1) hash | +100% |
-| **L7 regex** | Interpreted | JIT-compiled | +100% |
-| **Direction filter** | Both ways | Client→Server only | +20% |
+| Bottleneck           | Original        | ULTRA FAST         | Improvement |
+| -------------------- | --------------- | ------------------ | ----------- |
+| **Mutex locks**      | High contention | None               | +40%        |
+| **Packet copying**   | 3 copies/packet | 0 copies           | +30%        |
+| **L3/L4 rules**      | O(n) sequential | O(1) hash          | +100%       |
+| **L7 regex**         | Interpreted     | JIT-compiled       | +100%       |
+| **Direction filter** | Both ways       | Client→Server only | +20%        |
 
 ---
 
 ## 🚀 Advanced Usage
 
 ### Custom Queue Number
+
 ```bash
 sudo ./build/tiger-fox-ultra --queue 1
 ```
 
 ### Custom Rules File
+
 ```bash
 sudo ./build/tiger-fox-ultra --rules custom_rules.json
 ```
 
 ### Debug Mode
+
 ```bash
 sudo ./build/tiger-fox-ultra --verbose
 ```
 
 ### CPU Affinity (Pin to Core)
+
 ```bash
 sudo taskset -c 0 ./build/tiger-fox-ultra
 ```
@@ -405,16 +420,19 @@ sudo taskset -c 0 ./build/tiger-fox-ultra
 ### Build from Source
 
 **ULTRA FAST Mode**:
+
 ```bash
 ./build_ultra.sh
 ```
 
 **Original Mode**:
+
 ```bash
 ./build.sh
 ```
 
 **Both Modes**:
+
 ```bash
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
@@ -422,6 +440,7 @@ make -j$(nproc)
 ```
 
 ### Debug Build
+
 ```bash
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug
@@ -436,12 +455,14 @@ sudo gdb ./tiger-fox-ultra
 **Key Components**:
 
 1. **UltraFastEngine** (`src/engine/ultra_fast_engine.cpp`)
+
    - Hash table indexing at startup
    - O(1) IP/port lookups
    - PCRE2 JIT compilation
    - Early exit optimization
 
 2. **InlinePacketHandler** (`src/handlers/inline_packet_handler.cpp`)
+
    - Zero-copy NFQUEUE processing
    - Stack-allocated packet parsing
    - Direct verdict syscall
@@ -469,16 +490,19 @@ sudo gdb ./tiger-fox-ultra
 ### Benchmark Commands
 
 **Latency Test**:
+
 ```bash
 wrk -t 1 -c 1 -d 10s http://10.10.2.20/
 ```
 
 **Throughput Test**:
+
 ```bash
 wrk -t 12 -c 400 -d 30s http://10.10.2.20/
 ```
 
 **Stress Test**:
+
 ```bash
 wrk -t 20 -c 1000 -d 60s http://10.10.2.20/
 ```
@@ -498,14 +522,17 @@ wrk -t 20 -c 1000 -d 60s http://10.10.2.20/
 ### Potential Optimizations
 
 1. **Kernel Bypass (XDP/DPDK)**
+
    - Process packets in kernel space
    - Expected gain: +200%
 
 2. **GPU Regex Matching**
+
    - Offload pattern matching to GPU
    - Expected gain: +500%
 
 3. **SmartNIC Offload**
+
    - Hardware-accelerated filtering
    - Expected gain: +1000%
 
@@ -528,14 +555,17 @@ wrk -t 20 -c 1000 -d 60s http://10.10.2.20/
 ### Current Limitations
 
 1. **Single-threaded**: Uses only 1 CPU core
+
    - Trade-off: Simplicity vs parallelism
    - Solution: Multi-process architecture
 
 2. **No full HTTP reassembly in ULTRA mode**
+
    - Trade-off: Speed vs completeness
    - Solution: Use Original mode for complex L7 rules
 
 3. **CIDR range matching is O(k)**
+
    - k = number of ranges (typically < 50)
    - Solution: IP prefix trie structure
 
@@ -549,7 +579,7 @@ wrk -t 20 -c 1000 -d 60s http://10.10.2.20/
 ✅ **NFQUEUE not released after crash** - Added proper unbind  
 ✅ **Manual iptables setup** - Now auto-configured  
 ✅ **Mutex contention** - Eliminated in ULTRA mode  
-✅ **Packet copying overhead** - Zero-copy architecture  
+✅ **Packet copying overhead** - Zero-copy architecture
 
 ---
 
@@ -558,6 +588,7 @@ wrk -t 20 -c 1000 -d 60s http://10.10.2.20/
 This is a research project for performance comparison (C++ vs Python vs Suricata).
 
 **Contributions welcome**:
+
 - Performance optimizations
 - Additional rule types
 - IPv6 support
