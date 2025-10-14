@@ -76,7 +76,7 @@ PacketHandler::PacketHandler(int queue_num, WorkerPool* worker_pool, bool debug_
       nfq_handle_(nullptr),
       queue_handle_(nullptr),
       netlink_fd_(-1),
-      tcp_reassembler_(std::make_unique<TCPReassembler>()) {
+      tcp_reassembler_(std::make_unique<TCPReassembler>(5000, 10)) {  // ✅ 5000 streams, 10s timeout (vs 10000, 60s)
     
     LOG_DEBUG(debug_mode_, "PacketHandler initialized for queue " + std::to_string(queue_num_));
     
@@ -122,7 +122,8 @@ bool PacketHandler::Initialize() {
         return false;
     }
 
-    if (nfq_set_queue_maxlen(queue_handle_, 10000) < 0) {
+    // ✅ PERFORMANCE: Set large queue for high throughput (100k packets)
+    if (nfq_set_queue_maxlen(queue_handle_, 100000) < 0) {
         std::cerr << "⚠️  WARNING: nfq_set_queue_maxlen() failed" << std::endl;
     }
 
@@ -180,9 +181,10 @@ void PacketHandler::Start(PacketCallback callback) {
 
         nfq_handle_packet(nfq_handle_, buffer, len);
         
-        // Periodically check for timed-out buffered packets (every 1 second)
+        // ✅ PERFORMANCE: Check timeouts more frequently (every 50ms vs 1000ms)
+        // With 100ms timeout, we need to check often to avoid buffer bloat
         auto now = std::chrono::steady_clock::now();
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_timeout_check).count() > 1000) {
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_timeout_check).count() > 50) {
             CheckPendingTimeouts();
             last_timeout_check = now;
         }
@@ -308,6 +310,20 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
         if (!ParsePacket(packet_data, packet_len, parsed_packet)) {
             LOG_DEBUG(debug_mode_, "Failed to parse packet " + std::to_string(packet_id));
             return nfq_set_verdict(qh, nfq_id, NF_ACCEPT, 0, nullptr);
+        }
+
+        // ============================================================
+        // EARLY ACCEPT: HTTP RESPONSES (CRITICAL OPTIMIZATION!)
+        // ============================================================
+        // Skip filtering for HTTP responses (server→client)
+        // This eliminates 50% of traffic from analysis!
+        if (parsed_packet.protocol == IPPROTO_TCP) {
+            bool src_is_http = http_ports_.count(parsed_packet.src_port) > 0;
+            if (src_is_http && parsed_packet.dst_port > 1024) {
+                // HTTP response: server (80/443) → client (high port)
+                accepted_packets_.fetch_add(1, std::memory_order_relaxed);
+                return nfq_set_verdict(qh, nfq_id, NF_ACCEPT, 0, nullptr);
+            }
         }
 
         uint64_t conn_key = GetConnectionKey(parsed_packet);
@@ -523,10 +539,18 @@ bool PacketHandler::NeedsHTTPReassembly(const PacketData& packet) {
         return false;
     }
 
-    // ✅ FIX CRITIQUE: Only reassemble CLIENT → SERVER (requests)
-    // Ignore SERVER → CLIENT (responses) to avoid 7s timeout bug!
-    // Client typically uses high port (>1024), server uses 80/443/8080
-    return http_ports_.count(packet.dst_port) > 0;  // ✅ Only check DESTINATION port!
+    // ✅ CRITICAL FIX: Only reassemble CLIENT → SERVER (HTTP REQUESTS)
+    // NEVER reassemble SERVER → CLIENT (HTTP RESPONSES) - waste of time!
+    // 
+    // Client: high port (>1024) → Server: HTTP port (80/443/8080)
+    // Response: Server: HTTP port → Client: high port (IGNORE THIS!)
+    
+    // Check destination port is HTTP AND source port is NOT HTTP (client→server)
+    bool dst_is_http = http_ports_.count(packet.dst_port) > 0;
+    bool src_is_http = http_ports_.count(packet.src_port) > 0;
+    
+    // Only reassemble if going TO an HTTP port and NOT FROM an HTTP port
+    return dst_is_http && !src_is_http;
 }
 
 void PacketHandler::HandleTCPReassembly(unsigned char* data, int len, PacketData& packet) {
@@ -573,9 +597,12 @@ void PacketHandler::BlockConnection(uint64_t connection_key) {
     std::lock_guard<std::mutex> lock(connections_mutex_);
     blocked_connections_.insert(connection_key);
     
-    if (blocked_connections_.size() > 50000) {
+    // ✅ PERFORMANCE: Aggressive cleanup with lower threshold
+    // Keep only recent 5000 blocked connections (vs 50000 before)
+    if (blocked_connections_.size() > 5000) {
+        // Remove oldest 2500 entries to prevent hash table bloat
         auto it = blocked_connections_.begin();
-        for (int i = 0; i < 10000 && it != blocked_connections_.end(); ++i) {
+        for (int i = 0; i < 2500 && it != blocked_connections_.end(); ++i) {
             it = blocked_connections_.erase(it);
         }
     }

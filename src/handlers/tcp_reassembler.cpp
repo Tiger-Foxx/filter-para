@@ -16,7 +16,8 @@
 // ============================================================
 TCPReassembler::TCPReassembler(size_t max_streams, uint32_t timeout_seconds)
     : max_streams_(max_streams), timeout_seconds_(timeout_seconds) {
-    streams_.reserve(max_streams_ / 2); // Pre-allocate for performance
+    // ✅ PERFORMANCE: Reserve less memory initially, grow as needed
+    streams_.reserve(1000);  // Start with 1000, not max_streams/2 (5000)
 }
 
 TCPReassembler::~TCPReassembler() {
@@ -330,14 +331,21 @@ std::shared_ptr<HTTPData> TCPReassembler::ParseHTTPRequest(TCPStream* stream) {
     // Check if request is complete
     bool is_complete = false;
     
-    if (stream->content_length > 0) {
-        // POST/PUT with body - wait for complete payload
+    // ✅ CRITICAL OPTIMIZATION: Don't wait for body for most requests!
+    // GET, HEAD, DELETE, CONNECT, TRACE have NO body → complete when headers parsed
+    // Only POST, PUT, PATCH need body
+    std::string method_upper = http_data->method;
+    std::transform(method_upper.begin(), method_upper.end(), method_upper.begin(), ::toupper);
+    
+    bool method_has_body = (method_upper == "POST" || method_upper == "PUT" || method_upper == "PATCH");
+    
+    if (method_has_body && stream->content_length > 0) {
+        // POST/PUT/PATCH with body - wait for complete payload
         if (http_data->payload.size() >= stream->content_length) {
             is_complete = true;
         }
     } else {
-        // GET/HEAD/DELETE - complete when headers are parsed
-        // (no Content-Length header means no body expected)
+        // GET/HEAD/DELETE/etc OR no body → complete immediately when headers parsed!
         is_complete = stream->http_headers_complete;
     }
     

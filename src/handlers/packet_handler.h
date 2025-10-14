@@ -109,8 +109,8 @@ private:
     std::unordered_map<uint64_t, std::vector<PendingPacket>> pending_packets_;
     mutable std::mutex pending_mutex_;
     
-    // Timeout for pending packets (5 seconds)
-    static constexpr uint32_t PENDING_TIMEOUT_MS = 5000;
+    // Timeout for pending packets (100ms - aggressive for high performance)
+    static constexpr uint32_t PENDING_TIMEOUT_MS = 100;
     
     // Helper to flush pending packets
     void FlushPendingPackets(uint64_t connection_key, uint32_t verdict);
