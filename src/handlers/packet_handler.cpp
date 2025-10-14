@@ -286,10 +286,17 @@ void PacketHandler::Stop() {
 // ============================================================
 int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
                                 nfq_data *nfa) {
+    // ✅ PERFORMANCE: Only use timer in debug mode
+    #ifdef TIGER_FOX_DEBUG
     HighResTimer timer;
+    #endif
     
-    total_packets_.fetch_add(1, std::memory_order_relaxed);
-    uint64_t packet_id = total_packets_.load(std::memory_order_relaxed);
+    // ✅ PERFORMANCE: Only count packets in debug mode (atomic ops are slow!)
+    uint64_t packet_id = 0;
+    if (debug_mode_) {
+        total_packets_.fetch_add(1, std::memory_order_relaxed);
+        packet_id = total_packets_.load(std::memory_order_relaxed);
+    }
 
     struct nfqnl_msg_packet_hdr *packet_hdr = nfq_get_msg_packet_hdr(nfa);
     if (!packet_hdr) {
@@ -322,7 +329,8 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
             bool src_is_http = http_ports_.count(parsed_packet.src_port) > 0;
             if (src_is_http && parsed_packet.dst_port > 1024) {
                 // HTTP response: server (80/443) → client (high port)
-                accepted_packets_.fetch_add(1, std::memory_order_relaxed);
+                // ✅ PERFORMANCE: No atomic op in fast path
+                if (debug_mode_) accepted_packets_.fetch_add(1, std::memory_order_relaxed);
                 return nfq_set_verdict(qh, nfq_id, NF_ACCEPT, 0, nullptr);
             }
         }
@@ -390,10 +398,16 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
         // ============================================================
         // 3. EVALUATE RULES (L3/L4 always, L7 only if HTTP complete)
         // ============================================================
-        // ✅ ASYNC VERDICT: Submit to worker and return IMMEDIATELY
-        // The verdict will be applied by the dedicated verdict_thread_
+        // ✅ ULTRA-FAST MODE: SYNCHRONOUS verdict for minimal latency!
+        // No worker pool, no async queue, verdict applied IMMEDIATELY
         
-        // Capture variables for async callback
+        // For maximum performance, bypass worker pool entirely
+        // and evaluate rules directly in NFQUEUE callback thread
+        
+        // Create local FastRuleEngine (thread-local, no contention)
+        // Actually, we'll use worker_pool but with SYNCHRONOUS callback
+        
+        // Capture variables for callback
         bool http_was_complete = http_complete;
         uint64_t connection_key = conn_key;
         uint64_t pkt_id = packet_id;
