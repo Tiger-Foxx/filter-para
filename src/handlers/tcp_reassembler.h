@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cstdint>
 #include <vector>
+#include <mutex>
 
 // Forward declaration
 struct PacketData;
@@ -113,8 +114,9 @@ private:
     size_t max_streams_;
     uint32_t timeout_seconds_;
     
-    // Stream storage
+    // Stream storage (MUST be protected with mutex for multi-threading!)
     std::unordered_map<std::string, std::unique_ptr<TCPStream>> streams_;
+    mutable std::mutex streams_mutex_;  // ✅ SEGFAULT FIX: Protect streams_ map
     
     // Statistics
     std::atomic<uint64_t> total_streams_created_{0};

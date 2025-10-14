@@ -143,6 +143,8 @@ std::string TCPReassembler::GetStreamKey(const std::string& src_ip, uint16_t src
 
 TCPStream* TCPReassembler::GetOrCreateStream(const std::string& src_ip, uint16_t src_port,
                                             const std::string& dst_ip, uint16_t dst_port) {
+    std::lock_guard<std::mutex> lock(streams_mutex_);  // ✅ SEGFAULT FIX: Protect map access
+    
     std::string key = GetStreamKey(src_ip, src_port, dst_ip, dst_port);
     
     auto it = streams_.find(key);
@@ -150,21 +152,27 @@ TCPStream* TCPReassembler::GetOrCreateStream(const std::string& src_ip, uint16_t
         return it->second.get();
     }
     
-    // Check max streams limit
+    // ✅ SEGFAULT FIX: Aggressive cleanup if we hit max streams
     if (streams_.size() >= max_streams_) {
-        // Remove oldest stream (simple LRU)
-        auto oldest_it = streams_.begin();
-        auto oldest_time = oldest_it->second->last_activity;
+        // Emergency: Remove 20% of oldest streams at once (batch cleanup)
+        size_t to_remove = max_streams_ / 5;  // Remove 20%
         
-        for (auto iter = streams_.begin(); iter != streams_.end(); ++iter) {
-            if (iter->second->last_activity < oldest_time) {
-                oldest_it = iter;
-                oldest_time = iter->second->last_activity;
-            }
+        std::vector<std::pair<std::string, std::chrono::steady_clock::time_point>> stream_ages;
+        stream_ages.reserve(streams_.size());
+        
+        for (const auto& [key, stream] : streams_) {
+            stream_ages.emplace_back(key, stream->last_activity);
         }
         
-        streams_.erase(oldest_it);
-        streams_timeout_.fetch_add(1, std::memory_order_relaxed);
+        // Sort by age (oldest first)
+        std::sort(stream_ages.begin(), stream_ages.end(),
+                  [](const auto& a, const auto& b) { return a.second < b.second; });
+        
+        // Remove oldest 20%
+        for (size_t i = 0; i < to_remove && i < stream_ages.size(); ++i) {
+            streams_.erase(stream_ages[i].first);
+            streams_timeout_.fetch_add(1, std::memory_order_relaxed);
+        }
     }
     
     // Create new stream
@@ -183,6 +191,8 @@ TCPStream* TCPReassembler::GetOrCreateStream(const std::string& src_ip, uint16_t
 }
 
 void TCPReassembler::RemoveStream(const std::string& stream_key) {
+    std::lock_guard<std::mutex> lock(streams_mutex_);  // ✅ SEGFAULT FIX: Protect erase
+    
     auto it = streams_.find(stream_key);
     if (it != streams_.end()) {
         streams_completed_.fetch_add(1, std::memory_order_relaxed);
@@ -427,10 +437,13 @@ bool TCPReassembler::ParseHTTPHeaders(const std::string& data, HTTPData& http_da
 // CLEANUP
 // ============================================================
 void TCPReassembler::Cleanup() {
+    std::lock_guard<std::mutex> lock(streams_mutex_);  // ✅ SEGFAULT FIX: Protect clear
     streams_.clear();
 }
 
 void TCPReassembler::CleanupExpiredStreams() {
+    std::lock_guard<std::mutex> lock(streams_mutex_);  // ✅ SEGFAULT FIX: Protect iteration
+    
     auto now = std::chrono::steady_clock::now();
     auto timeout_duration = std::chrono::seconds(timeout_seconds_);
     
@@ -456,6 +469,8 @@ void TCPReassembler::CleanupExpiredStreams() {
 // STATISTICS
 // ============================================================
 TCPReassembler::Stats TCPReassembler::GetStats() const {
+    std::lock_guard<std::mutex> lock(streams_mutex_);  // ✅ SEGFAULT FIX: Protect read
+    
     Stats stats;
     stats.active_streams = streams_.size();
     stats.total_streams_created = total_streams_created_.load();
