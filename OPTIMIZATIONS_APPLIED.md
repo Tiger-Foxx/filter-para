@@ -9,25 +9,30 @@
 ## 📊 PROBLÈMES IDENTIFIÉS
 
 ### 1. **BUFFERING DES RÉPONSES HTTP** ⚠️⚠️⚠️
+
 **Symptôme**: 7 secondes de latence, timeouts massifs
 **Cause**: Le système bufferisait les réponses HTTP (server→client) inutilement
 **Impact**: 50% du trafic analysé pour rien!
 
 ### 2. **TIMEOUT BUFFER TROP LONG**
+
 **Avant**: 5000ms (5 secondes)
 **Problème**: WRK timeout à 2s → Paquets bloqués après timeout WRK
 **Impact**: Accumulation de paquets en attente
 
 ### 3. **NFQUEUE TROP PETITE**
+
 **Avant**: 10,000 paquets
 **Problème**: Saturation rapide sous charge élevée
 **Impact**: Packet drops au niveau kernel
 
 ### 4. **CLEANUP INSUFFISANT**
+
 **Problème**: Connexions bloquées s'accumulent (50,000 max)
 **Impact**: Hash table lookup devient O(n) au lieu de O(1)
 
 ### 5. **HTTP PARSING INEFFICACE**
+
 **Problème**: Attente du body complet même pour GET (qui n'a pas de body!)
 **Impact**: Latence inutile de plusieurs RTT
 
@@ -36,6 +41,7 @@
 ## ✅ OPTIMISATIONS IMPLÉMENTÉES
 
 ### **OPT-1: EARLY ACCEPT - Réponses HTTP** (Impact: **MAJEUR** 🔥)
+
 **Fichier**: `src/handlers/packet_handler.cpp`
 **Ligne**: ~315
 
@@ -57,6 +63,7 @@ if (parsed_packet.protocol == IPPROTO_TCP) {
 ---
 
 ### **OPT-2: FIX DIRECTION REASSEMBLY** (Impact: **MAJEUR** 🔥)
+
 **Fichier**: `src/handlers/packet_handler.cpp`
 **Ligne**: ~535
 
@@ -75,6 +82,7 @@ bool PacketHandler::NeedsHTTPReassembly(const PacketData& packet) {
 ---
 
 ### **OPT-3: RÉDUCTION TIMEOUT BUFFER** (Impact: **MAJEUR** 🔥)
+
 **Fichier**: `src/handlers/packet_handler.h`
 **Ligne**: ~113
 
@@ -90,6 +98,7 @@ static constexpr uint32_t PENDING_TIMEOUT_MS = 100;
 ---
 
 ### **OPT-4: AUGMENTATION NFQUEUE** (Impact: **MOYEN** 🟡)
+
 **Fichier**: `src/handlers/packet_handler.cpp`
 **Ligne**: ~125
 
@@ -105,6 +114,7 @@ nfq_set_queue_maxlen(queue_handle_, 100000);
 ---
 
 ### **OPT-5: CLEANUP AGRESSIF CONNEXIONS** (Impact: **MOYEN** 🟡)
+
 **Fichier**: `src/handlers/packet_handler.cpp`
 **Ligne**: ~595
 
@@ -124,6 +134,7 @@ if (blocked_connections_.size() > 5000) {
 ---
 
 ### **OPT-6: TIMEOUT CHECK FRÉQUENT** (Impact: **MOYEN** 🟡)
+
 **Fichier**: `src/handlers/packet_handler.cpp`
 **Ligne**: ~185
 
@@ -140,6 +151,7 @@ if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_timeout_che
 ---
 
 ### **OPT-7: HTTP PARSING OPTIMISÉ** (Impact: **MAJEUR** 🔥)
+
 **Fichier**: `src/handlers/tcp_reassembler.cpp`
 **Ligne**: ~335
 
@@ -162,6 +174,7 @@ if (method_has_body && stream->content_length > 0) {
 ---
 
 ### **OPT-8: TCP REASSEMBLER LÉGER** (Impact: **FAIBLE** 🟢)
+
 **Fichier**: `src/handlers/tcp_reassembler.cpp`
 **Ligne**: ~19
 
@@ -187,12 +200,14 @@ tcp_reassembler_(std::make_unique<TCPReassembler>(5000, 10))
 ## 📈 GAINS ESTIMÉS TOTAUX
 
 ### **Throughput (req/s)**
+
 - **Avant**: 400-600 req/s (50s test), 180 req/s (200s test)
 - **Après estimé**: 2000-2500 req/s (stable sur durée longue)
 - **Gain**: **+400% à +1300%**
 
 ### **Latence**
-- **Avant**: 
+
+- **Avant**:
   - Moyenne: 150-250ms
   - P99: 400-2000ms
   - Timeouts: ~2000-15000 par test
@@ -203,6 +218,7 @@ tcp_reassembler_(std::make_unique<TCPReassembler>(5000, 10))
 - **Gain**: **-85% latence**
 
 ### **Timeouts WRK**
+
 - **Avant**: 1500-15000 timeouts selon durée
 - **Après estimé**: <100 timeouts (même sur 200s)
 - **Gain**: **-99% timeouts**
@@ -228,6 +244,7 @@ wrk -t4 -c500 -d120s http://10.10.2.20/
 ```
 
 ### **Métriques à surveiller**
+
 1. **Requests/sec**: Objectif >2000 req/s
 2. **Latency avg**: Objectif <30ms
 3. **Latency p99**: Objectif <100ms
@@ -241,14 +258,17 @@ wrk -t4 -c500 -d120s http://10.10.2.20/
 ### **Phase 2: Optimisations Avancées**
 
 1. **VERDICT SYNCHRONE** (enlever async queue)
+
    - Gain estimé: +10-15%
    - Complexité: Moyenne
 
 2. **SINGLE-THREADED MODE** (comme Python)
+
    - Gain estimé: +20-30%
    - Complexité: Faible (déjà le code existe)
 
 3. **ZERO-COPY PACKET PARSING**
+
    - Gain estimé: +15%
    - Complexité: Élevée
 
@@ -261,12 +281,14 @@ wrk -t4 -c500 -d120s http://10.10.2.20/
 ## 📝 NOTES
 
 ### **Pourquoi Python était plus rapide?**
+
 1. **Pas de buffering des réponses** → Immédiatement acceptées
 2. **Parsing HTTP simple** → GET complet dès headers reçus
 3. **Pas de async verdict queue** → Verdict immédiat
 4. **Single-threaded** → Pas de contention mutex
 
 ### **Changements de philosophie C++**
+
 - **Avant**: Analyser TOUT le trafic (requêtes + réponses)
 - **Après**: Analyser SEULEMENT les requêtes (client→server)
 - **Résultat**: 50% moins de travail!
@@ -294,5 +316,5 @@ wrk -t4 -c500 -d120s http://10.10.2.20/
 
 ---
 
-*Document généré automatiquement lors des optimisations*
-*Dernière mise à jour: 13 octobre 2025*
+_Document généré automatiquement lors des optimisations_
+_Dernière mise à jour: 13 octobre 2025_
