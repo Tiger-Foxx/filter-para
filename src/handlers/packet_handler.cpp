@@ -327,13 +327,19 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
             }
         }
 
-        // ✅ PERFORMANCE: Disabled connection-level blocking for now
-        // It was causing issues where responses were blocked after a DROP
-        // Each packet is now evaluated independently (stateless filtering)
-        // TODO: Implement proper stateful tracking if needed later
+        uint64_t conn_key = GetConnectionKey(parsed_packet);
         
-        // uint64_t conn_key = GetConnectionKey(parsed_packet);
-        // if (conn_key != 0 && IsConnectionBlocked(conn_key)) { ... }
+        // ============================================================
+        // 1. CHECK IF CONNECTION ALREADY BLOCKED
+        // ============================================================
+        if (conn_key != 0 && IsConnectionBlocked(conn_key)) {
+            dropped_packets_.fetch_add(1, std::memory_order_relaxed);
+            if (packet_callback_) packet_callback_(true);
+            
+            LOG_DEBUG(debug_mode_, "DROPPED packet " + std::to_string(packet_id) + 
+                     " - connection already blocked");
+            return nfq_set_verdict(qh, nfq_id, NF_DROP, 0, nullptr);
+        }
 
         // ============================================================
         // 2. HANDLE HTTP REASSEMBLY (if needed)
@@ -409,10 +415,11 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
             // Update stats (atomic operations are fast)
             if (is_drop) {
                 dropped_packets_.fetch_add(1, std::memory_order_relaxed);
-                // ✅ DISABLED: Connection blocking (causes performance issues)
-                // if (connection_key != 0) {
-                //     BlockConnection(connection_key);
-                // }
+                // ✅ ENABLED: Block connection ONLY for client→server requests
+                // Don't block if this is a response packet
+                if (connection_key != 0) {
+                    BlockConnection(connection_key);
+                }
                 if (packet_callback_) packet_callback_(true);
                 
                 LOG_DEBUG(debug_mode_, "❌ DROPPED packet " + std::to_string(pkt_id) + 
@@ -568,49 +575,18 @@ uint64_t PacketHandler::GetConnectionKey(const PacketData& packet) {
     uint32_t src_ip_int = RuleEngine::IPStringToUint32(packet.src_ip);
     uint32_t dst_ip_int = RuleEngine::IPStringToUint32(packet.dst_ip);
     
-    // ✅ CRITICAL FIX: Direction-aware key (NOT symmetric!)
-    // We ONLY block client→server direction, not server→client responses
-    // So use ordered tuple: (client_ip, client_port, server_ip, server_port)
+    // ✅ SIMPLE FIX: Always use SAME direction for key
+    // Client → Server: client(high_port) → server(80/443)
+    // Server → Client: server(80/443) → client(high_port)
+    // We want SAME key for both directions to track the connection
     
-    // Determine direction: client uses high port, server uses low port (80/443)
-    bool src_is_client = packet.src_port > 1024;
-    bool dst_is_server = http_ports_.count(packet.dst_port) > 0;
-    
-    uint64_t client_ip, server_ip;
-    uint16_t client_port, server_port;
-    
-    if (src_is_client && dst_is_server) {
-        // Request direction: client → server
-        client_ip = src_ip_int;
-        client_port = packet.src_port;
-        server_ip = dst_ip_int;
-        server_port = packet.dst_port;
-    } else if (dst_is_server) {
-        // Ambiguous, but probably request
-        client_ip = src_ip_int;
-        client_port = packet.src_port;
-        server_ip = dst_ip_int;
-        server_port = packet.dst_port;
-    } else {
-        // Response direction: server → client (or unknown)
-        // Use normalized order (smaller IP first) for bidirectional tracking
-        if (src_ip_int < dst_ip_int || (src_ip_int == dst_ip_int && packet.src_port < packet.dst_port)) {
-            client_ip = src_ip_int;
-            client_port = packet.src_port;
-            server_ip = dst_ip_int;
-            server_port = packet.dst_port;
-        } else {
-            client_ip = dst_ip_int;
-            client_port = packet.dst_port;
-            server_ip = src_ip_int;
-            server_port = packet.src_port;
-        }
-    }
-    
-    // Create ORDERED key (not symmetric!)
+    // Simple approach: Always put smaller IP:port pair first
     std::hash<uint64_t> hasher;
-    uint64_t key = ((client_ip ^ server_ip) << 32) | ((client_port << 16) | server_port);
-    return hasher(key);
+    uint64_t key1 = (static_cast<uint64_t>(src_ip_int) << 32) | (static_cast<uint64_t>(packet.src_port) << 16) | packet.dst_port;
+    uint64_t key2 = (static_cast<uint64_t>(dst_ip_int) << 32) | (static_cast<uint64_t>(packet.dst_port) << 16) | packet.src_port;
+    
+    // Use the smaller key for consistent bidirectional tracking
+    return hasher(std::min(key1, key2));
 }
 
 bool PacketHandler::IsConnectionBlocked(uint64_t connection_key) {
