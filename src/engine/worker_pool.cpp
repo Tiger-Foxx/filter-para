@@ -33,7 +33,7 @@ inline FilterResult HybridRuleEngine::FilterPacket(const PacketData& packet) {
         const auto& l3_rules = rules_by_layer_.at(RuleLayer::L3);
         for (const auto& rule : l3_rules) {
             if (EvaluateRule(*rule, packet)) {
-                return FilterResult(rule->action, rule->id, timer.Elapsed(), RuleLayer::L3);
+                return FilterResult(rule->action, rule->id, timer.ElapsedMillis(), RuleLayer::L3);
             }
         }
     }
@@ -43,7 +43,7 @@ inline FilterResult HybridRuleEngine::FilterPacket(const PacketData& packet) {
         const auto& l4_rules = rules_by_layer_.at(RuleLayer::L4);
         for (const auto& rule : l4_rules) {
             if (EvaluateRule(*rule, packet)) {
-                return FilterResult(rule->action, rule->id, timer.Elapsed(), RuleLayer::L4);
+                return FilterResult(rule->action, rule->id, timer.ElapsedMillis(), RuleLayer::L4);
             }
         }
     }
@@ -53,13 +53,13 @@ inline FilterResult HybridRuleEngine::FilterPacket(const PacketData& packet) {
         const auto& l7_rules = rules_by_layer_.at(RuleLayer::L7);
         for (const auto& rule : l7_rules) {
             if (EvaluateRule(*rule, packet)) {
-                return FilterResult(rule->action, rule->id, timer.Elapsed(), RuleLayer::L7);
+                return FilterResult(rule->action, rule->id, timer.ElapsedMillis(), RuleLayer::L7);
             }
         }
     }
     
     // Default: ACCEPT
-    return FilterResult(RuleAction::ACCEPT, "", timer.Elapsed(), RuleLayer::L3);
+    return FilterResult(RuleAction::ACCEPT, "", timer.ElapsedMillis(), RuleLayer::L3);
 }
 
 // ============================================================
