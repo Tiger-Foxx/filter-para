@@ -1,6 +1,5 @@
 #include "worker_pool.h"
 #include "rule_engine.h"
-#include "fast_rule_engine.h"  // ✅ Use optimized engine
 #include "../handlers/tcp_reassembler.h"
 #include "../utils.h"
 
@@ -16,16 +15,52 @@
 
 // ============================================================
 // HYBRID RULE ENGINE (moteur léger pour chaque worker)
-// ✅ NOW USING FAST RULE ENGINE with hash tables!
 // ============================================================
-class HybridRuleEngine : public FastRuleEngine {
+class HybridRuleEngine : public RuleEngine {
 public:
     explicit HybridRuleEngine(const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules)
-        : FastRuleEngine(rules) {}
+        : RuleEngine(rules) {}
     
-    // ✅ Use FastRuleEngine::FilterPacket() directly (hash-based O(1) lookups)
-    // No need to override, parent class has optimized implementation
+    FilterResult FilterPacket(const PacketData& packet) override;
 };
+
+// Implementation of HybridRuleEngine::FilterPacket
+inline FilterResult HybridRuleEngine::FilterPacket(const PacketData& packet) {
+    HighResTimer timer;
+    
+    // Check L3 rules (network layer - IPs)
+    if (rules_by_layer_.find(RuleLayer::L3) != rules_by_layer_.end()) {
+        const auto& l3_rules = rules_by_layer_.at(RuleLayer::L3);
+        for (const auto& rule : l3_rules) {
+            if (EvaluateRule(*rule, packet)) {
+                return FilterResult(rule->action, rule->id, timer.Elapsed(), RuleLayer::L3);
+            }
+        }
+    }
+    
+    // Check L4 rules (transport layer - ports)
+    if (rules_by_layer_.find(RuleLayer::L4) != rules_by_layer_.end()) {
+        const auto& l4_rules = rules_by_layer_.at(RuleLayer::L4);
+        for (const auto& rule : l4_rules) {
+            if (EvaluateRule(*rule, packet)) {
+                return FilterResult(rule->action, rule->id, timer.Elapsed(), RuleLayer::L4);
+            }
+        }
+    }
+    
+    // Check L7 rules (application layer)
+    if (rules_by_layer_.find(RuleLayer::L7) != rules_by_layer_.end()) {
+        const auto& l7_rules = rules_by_layer_.at(RuleLayer::L7);
+        for (const auto& rule : l7_rules) {
+            if (EvaluateRule(*rule, packet)) {
+                return FilterResult(rule->action, rule->id, timer.Elapsed(), RuleLayer::L7);
+            }
+        }
+    }
+    
+    // Default: ACCEPT
+    return FilterResult(RuleAction::ACCEPT, "", timer.Elapsed(), RuleLayer::L3);
+}
 
 // ============================================================
 // WORKER POOL IMPLEMENTATION
