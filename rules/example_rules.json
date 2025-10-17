@@ -22,6 +22,34 @@
       "values": [22],
       "action": "drop"
     },
+       {
+      "id": "block_ssh_brute",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [22],
+      "action": "drop"
+    },
+       {
+      "id": "block_ssh_brute",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [22],
+      "action": "drop"
+    },
+       {
+      "id": "block_ssh_brute",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [22],
+      "action": "drop"
+    },
+       {
+      "id": "block_ssh_brute",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [22],
+      "action": "drop"
+    },
     {
       "id": "block_sqli_attempts",
       "layer": 7,
@@ -68,6 +96,13 @@
       "action": "drop"
     },
     {
+      "id": "block_botnet_ips_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["103.253.147.0/24", "185.220.101.0/24", "188.114.97.0/24", "95.142.46.0/24"],
+      "action": "drop"
+    },
+    {
       "id": "block_vpn_ranges_1",
       "layer": 3,
       "type": "ip_src_in",
@@ -93,6 +128,20 @@
       "layer": 3,
       "type": "ip_src_in",
       "values": ["185.165.168.0/22", "82.221.128.0/24", "192.241.0.0/16", "159.203.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_botnet_ips_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["103.253.147.0/24", "185.220.101.0/24", "188.114.97.0/24", "95.142.46.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_botnet_ips_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["103.253.147.0/24", "185.220.101.0/24", "188.114.97.0/24", "95.142.46.0/24"],
       "action": "drop"
     },
     {
