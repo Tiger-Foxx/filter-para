@@ -293,3 +293,20 @@ bool PacketHandler::ParsePacket(unsigned char* data, int len, PacketData& packet
 }
 
 // ============================================================
+// STATISTICS
+// ============================================================
+void PacketHandler::PrintStats() const {
+    uint64_t total = total_packets_.load(std::memory_order_relaxed);
+    uint64_t dropped = dropped_packets_.load(std::memory_order_relaxed);
+    uint64_t accepted = total - dropped;
+    
+    std::cout << "\n";
+    std::cout << "📊 ========== PACKET STATISTICS ========== 📊\n";
+    std::cout << "   Total packets processed: " << total << "\n";
+    std::cout << "   ✅ ACCEPTED: " << accepted << " (" << (total > 0 ? (accepted * 100.0 / total) : 0) << "%)\n";
+    std::cout << "   ❌ DROPPED: " << dropped << " (" << (total > 0 ? (dropped * 100.0 / total) : 0) << "%)\n";
+    std::cout << "📊 ========================================== 📊\n";
+    std::cout << "\n";
+}
+
+// ============================================================

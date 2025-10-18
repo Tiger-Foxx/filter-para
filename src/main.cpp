@@ -23,15 +23,18 @@ void PrintUsage(const char* program_name) {
     std::cout << "\n";
     std::cout << "🐯 Tiger-Fox Ultra-Fast Network Filtering System 🦊\n";
     std::cout << "===============================================\n";
-    std::cout << "Two Modes for Performance Research\n";
+    std::cout << "Three Modes for Performance Research\n";
     std::cout << "\n";
     std::cout << "Usage: " << program_name << " [OPTIONS]\n";
     std::cout << "\n";
     std::cout << "Options:\n";
-    std::cout << "  -m, --mode MODE        Filtering mode: sequential or parallel (default: sequential)\n";
+    std::cout << "  -m, --mode MODE        Filtering mode:\n";
+    std::cout << "                           sequential  = 1 thread, all rules (baseline)\n";
+    std::cout << "                           successive  = 3 workers one after another\n";
+    std::cout << "                           parallel    = 3 workers racing simultaneously\n";
     std::cout << "  -r, --rules FILE       Rules file path (default: rules/example_rules.json)\n";
     std::cout << "  -q, --queue NUM        NFQUEUE number (default: 0)\n";
-    std::cout << "  -w, --workers NUM      Number of workers for parallel mode (default: auto-detect)\n";
+    std::cout << "  -w, --workers NUM      Number of workers for parallel/successive (default: 3)\n";
     std::cout << "  -v, --verbose          Enable debug/verbose mode\n";
     std::cout << "  -h, --help             Show this help message\n";
     std::cout << "  -V, --version          Show version information\n";
@@ -101,8 +104,8 @@ CommandLineArgs ParseArguments(int argc, char* argv[]) {
         switch (c) {
             case 'm':
                 args.mode = std::string(optarg);
-                if (args.mode != "sequential" && args.mode != "parallel") {
-                    std::cerr << "❌ Error: Invalid mode. Must be 'sequential' or 'parallel'\n";
+                if (args.mode != "sequential" && args.mode != "successive" && args.mode != "parallel") {
+                    std::cerr << "❌ Error: Invalid mode. Must be 'sequential', 'successive', or 'parallel'\n";
                     exit(EXIT_FAILURE);
                 }
                 break;

@@ -44,6 +44,9 @@ public:
     
     // Packet processing - called by NFQUEUE callback
     int HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_data *nfa);
+    
+    // Statistics
+    void PrintStats() const;
 
 private:
     // NFQUEUE configuration
@@ -59,7 +62,7 @@ private:
     // Running state
     std::atomic<bool> running_{false};
     
-    // Minimal stats (only in debug mode)
+    // Statistics (thread-safe counters)
     std::atomic<uint64_t> total_packets_{0};
     std::atomic<uint64_t> dropped_packets_{0};
     

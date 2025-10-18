@@ -1,0 +1,173 @@
+{
+  "rules": [
+    {
+      "id": "BLOCK_INJECTOR_TEST",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["10.10.1.0/24"],
+      "action": "drop",
+      "comment": "TEST RULE: Block all traffic from injector 10.10.1.10 to verify filtering works"
+    },
+    {
+      "id": "block_tor_ips_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["192.42.116.0/24", "199.87.154.0/24", "185.220.100.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_tor_ips_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["192.42.117.0/24", "185.220.101.0/24", "188.114.97.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_malicious_range_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["45.142.122.0/24", "91.240.118.0/24", "194.147.78.0/24"],
+      "action": "drop"
+    },
+    {
+      "id": "block_malicious_range_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["103.253.147.0/24", "95.142.46.0/24", "167.99.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_range_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["185.165.168.0/22", "82.221.128.0/24", "192.241.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_range_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["178.62.0.0/16", "46.101.0.0/16", "174.138.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_proxy_networks",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["162.255.202.0/24", "172.64.80.0/24", "104.27.0.0/20"],
+      "action": "drop"
+    },
+    {
+      "id": "block_exploit_servers",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["198.50.128.0/17", "198.50.0.0/16", "149.56.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_vpn_services",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["193.32.126.0/24", "193.32.127.0/24", "89.238.0.0/17"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ssh_brute_force",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": ["22"],
+      "action": "drop"
+    },
+    {
+      "id": "block_telnet",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": ["23"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ftp",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": ["21"],
+      "action": "drop"
+    },
+    {
+      "id": "block_rdp",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": ["3389"],
+      "action": "drop"
+    },
+    {
+      "id": "block_vnc",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": ["5900", "5901", "5902"],
+      "action": "drop"
+    },
+    {
+      "id": "block_smb",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": ["445", "139"],
+      "action": "drop"
+    },
+    {
+      "id": "block_mysql_external",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": ["3306"],
+      "action": "drop"
+    },
+    {
+      "id": "block_postgres_external",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": ["5432"],
+      "action": "drop"
+    },
+    {
+      "id": "block_mongo_external",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": ["27017"],
+      "action": "drop"
+    },
+    {
+      "id": "block_redis_external",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": ["6379"],
+      "action": "drop"
+    },
+    {
+      "id": "block_elasticsearch",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": ["9200", "9300"],
+      "action": "drop"
+    },
+    {
+      "id": "block_memcached",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": ["11211"],
+      "action": "drop"
+    },
+    {
+      "id": "block_ntp_amplification",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": ["123"],
+      "action": "drop"
+    },
+    {
+      "id": "block_dns_amplification",
+      "layer": 4,
+      "type": "udp_dst_port",
+      "values": ["53"],
+      "action": "drop"
+    }
+  ]
+}

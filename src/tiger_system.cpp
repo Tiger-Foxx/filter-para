@@ -1,6 +1,7 @@
 #include "tiger_system.h"
 #include "utils.h"
 #include "engine/fast_sequential_engine.h"
+#include "engine/successive_engine.h"
 #include "engine/ultra_parallel_engine.h"
 #include "handlers/packet_handler.h"
 #include "loaders/rule_loader.h"
@@ -95,33 +96,20 @@ bool TigerSystem::Initialize() {
     
     if (mode_ == "sequential") {
         // ============================================================
-        // MODE SEQUENTIAL: Multiplier les règles par num_workers_
-        // pour avoir N fois plus de règles qu'un worker en mode parallel
+        // MODE SEQUENTIAL: 1 thread, toutes les règles (baseline)
         // ============================================================
-        std::cout << "   Mode: SEQUENTIAL (single-threaded, hash O(1))" << std::endl;
-        std::cout << "   Multiplying rules by " << num_workers_ << " for fair comparison..." << std::endl;
+        std::cout << "   Mode: SEQUENTIAL (1 thread, all " << original_rule_count << " rules)" << std::endl;
         
-        // Dupliquer les règles num_workers_ fois
-        std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>> multiplied_rules;
+        engine_ = std::make_unique<FastSequentialEngine>(rules_by_layer);
         
-        for (size_t copy = 0; copy < num_workers_; ++copy) {
-            for (const auto& [layer, layer_rules] : rules_by_layer) {
-                for (const auto& rule : layer_rules) {
-                    auto cloned_rule = rule->Clone();
-                    // Ajouter suffix au ID pour distinguer les copies
-                    cloned_rule->id = rule->id + "_copy" + std::to_string(copy);
-                    // IMPORTANT: Recompiler les IP ranges pour la règle clonée
-                    cloned_rule->CompileIPRanges();
-                    multiplied_rules[layer].push_back(std::move(cloned_rule));
-                }
-            }
-        }
+    } else if (mode_ == "successive") {
+        // ============================================================
+        // MODE SUCCESSIVE: 3 workers UN APRÈS L'AUTRE (idée du prof)
+        // ============================================================
+        std::cout << "   Mode: SUCCESSIVE (3 workers executing one after another)" << std::endl;
         
-        size_t total_sequential_rules = original_rule_count * num_workers_;
-        std::cout << "   Total rules for sequential: " << total_sequential_rules 
-                  << " (" << original_rule_count << " × " << num_workers_ << ")" << std::endl;
-        
-        engine_ = std::make_unique<FastSequentialEngine>(multiplied_rules);
+        size_t num_successive_workers = 3;
+        engine_ = std::make_unique<SuccessiveEngine>(rules_by_layer, num_successive_workers);
         
     } else if (mode_ == "parallel") {
         // ============================================================
@@ -205,6 +193,8 @@ void TigerSystem::Shutdown() {
     // Shutdown packet handler
     if (packet_handler_) {
         packet_handler_->Stop();
+        // Print statistics before destroying
+        packet_handler_->PrintStats();
         packet_handler_.reset();
     }
     
