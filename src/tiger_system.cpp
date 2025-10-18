@@ -2,7 +2,7 @@
 #include "utils.h"
 #include "engine/fast_sequential_engine.h"
 #include "engine/successive_engine.h"
-#include "engine/ultra_parallel_engine.h"
+#include "engine/true_parallel_engine.h"
 #include "handlers/packet_handler.h"
 #include "loaders/rule_loader.h"
 
@@ -113,20 +113,13 @@ bool TigerSystem::Initialize() {
         
     } else if (mode_ == "parallel") {
         // ============================================================
-        // MODE PARALLEL: Partitionner les règles entre workers
-        // Chaque worker aura ~(original_rule_count / num_workers_) règles
+        // MODE PARALLEL: True parallelism avec workers permanents
         // ============================================================
-        std::cout << "   Mode: PARALLEL (" << num_workers_ << " workers racing)" << std::endl;
-        std::cout << "   Rules will be partitioned: ~" << (original_rule_count / num_workers_) 
+        std::cout << "   Mode: PARALLEL (true parallelism with " << num_workers_ << " workers)" << std::endl;
+        std::cout << "   Rules partitioned: ~" << (original_rule_count / num_workers_) 
                   << " rules per worker" << std::endl;
         
-        engine_ = std::make_unique<UltraParallelEngine>(rules_by_layer, num_workers_);
-        
-        // Set debug mode if enabled
-        auto* parallel_engine = dynamic_cast<UltraParallelEngine*>(engine_.get());
-        if (parallel_engine && debug_mode_) {
-            parallel_engine->SetDebugMode(true);
-        }
+        engine_ = std::make_unique<TrueParallelEngine>(rules_by_layer, num_workers_);
     } else {
         std::cerr << "❌ Error: Invalid mode: " << mode_ << std::endl;
         return false;
@@ -193,7 +186,6 @@ void TigerSystem::Shutdown() {
     // Shutdown packet handler
     if (packet_handler_) {
         packet_handler_->Stop();
-        // Print statistics before destroying
         packet_handler_->PrintStats();
         packet_handler_.reset();
     }

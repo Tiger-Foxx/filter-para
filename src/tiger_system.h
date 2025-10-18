@@ -33,12 +33,12 @@ private:
     // Configuration
     std::string rules_file_;
     int queue_num_;
-    std::string mode_;  // "sequential" or "parallel"
+    std::string mode_;  // "sequential", "successive", or "parallel"
     size_t num_workers_;
     bool debug_mode_;
     
     // Components
-    std::unique_ptr<RuleEngine> engine_;  // Sequential or Parallel engine
+    std::unique_ptr<RuleEngine> engine_;
     std::unique_ptr<PacketHandler> packet_handler_;
     
     // System state

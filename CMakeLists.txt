@@ -62,7 +62,7 @@ set(ORIGINAL_SOURCES
     src/engine/rule_engine.cpp
     src/engine/fast_sequential_engine.cpp
     src/engine/successive_engine.cpp
-    src/engine/ultra_parallel_engine.cpp
+    src/engine/true_parallel_engine.cpp
     src/handlers/packet_handler.cpp
     src/loaders/rule_loader.cpp
 )
