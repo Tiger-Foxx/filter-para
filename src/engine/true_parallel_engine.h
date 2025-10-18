@@ -6,19 +6,53 @@
 #include <memory>
 #include <thread>
 #include <atomic>
+#include <mutex>
+#include <condition_variable>
 
 // ============================================================
-// TRUE PARALLEL ENGINE - SIMPLE & FAST
+// TRUE PARALLEL ENGINE - PRODUCTION GRADE
 // ============================================================
-// Concept simple :
-// 1. 3 workers avec règles partitionnées (chacun 1/3 des règles)
-// 2. Pour chaque paquet :
-//    - Les 3 workers évaluent EN PARALLÈLE
-//    - Chaque worker check SES règles uniquement
-//    - Si UN worker dit DROP → verdict = DROP
-//    - Si les 3 disent ACCEPT → verdict = ACCEPT
-// 3. Synchronisation : attendre que les 3 aient fini
-// 4. Performance : 3x moins de règles par worker = 3x plus rapide
+// Architecture de recherche avec synchronisation optimale :
+//
+// CONCEPT :
+// --------
+// 3 workers avec règles partitionnées évaluent LE MÊME paquet EN PARALLÈLE
+// - Worker 0 : règles 0-7   (1/3 des règles)
+// - Worker 1 : règles 8-15  (1/3 des règles)
+// - Worker 2 : règles 16-23 (1/3 des règles)
+//
+// LOGIQUE DE DÉCISION (ET logique) :
+// -----------------------------------
+// Pour qu'un paquet soit ACCEPTÉ, il faut que LES 3 workers disent ACCEPT
+// Si UN SEUL worker dit DROP → le paquet est DROP
+//
+// SYNCHRONISATION :
+// -----------------
+// 1. Thread principal prépare le paquet
+// 2. Signale aux 3 workers via condition_variable (pas de spin-wait !)
+// 3. Workers évaluent EN PARALLÈLE leurs règles
+// 4. OPTIMISATION : Si un worker trouve DROP, les autres arrêtent (early exit)
+// 5. Barrier : attendre que les 3 aient fini (ou détecté le DROP)
+// 6. Combiner résultats : un seul DROP suffit
+//
+// VARIABLES D'ÉTAT PAR WORKER :
+// ------------------------------
+// - current_packet : pointeur vers le paquet à traiter
+// - my_result : résultat de l'évaluation (ACCEPT ou DROP)
+// - done : flag atomic indiquant que ce worker a fini
+//
+// GLOBAL SHARED STATE :
+// ---------------------
+// - drop_detected : atomic bool (si true, les autres workers arrêtent)
+// - workers_finished : atomic counter (combien ont fini)
+// - packet_ready : nouveau paquet disponible
+//
+// PERFORMANCE :
+// -------------
+// - Condition variables : pas de burn CPU
+// - Early exit : dès qu'un DROP est trouvé
+// - Memory ordering explicite : acquire/release semantics
+// - Cache-friendly : chaque worker a ses propres variables
 // ============================================================
 
 class TrueParallelEngine : public RuleEngine {
@@ -33,17 +67,21 @@ public:
 
 private:
     // ============================================================
-    // WORKER - Moteur séquentiel avec SA partition de règles
+    // WORKER STATE (cache-aligned pour éviter false sharing)
     // ============================================================
-    struct Worker {
-        std::unique_ptr<FastSequentialEngine> engine;  // Son moteur avec SES règles
+    struct alignas(64) Worker {  // 64 bytes = taille d'une cache line
+        // Moteur avec règles partitionnées
+        std::unique_ptr<FastSequentialEngine> engine;
         size_t worker_id;
         
-        // État de travail pour le paquet courant
+        // État de travail (variables d'état dédiées)
         const PacketData* current_packet{nullptr};
-        FilterResult current_result{RuleAction::ACCEPT, "", 0.0, RuleLayer::L3};
+        FilterResult my_result{RuleAction::ACCEPT, "", 0.0, RuleLayer::L3};
+        
+        // Synchronisation
         std::atomic<bool> done{false};
         
+        // Thread
         std::thread thread;
         
         Worker(const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules, size_t id)
@@ -54,10 +92,21 @@ private:
     size_t num_workers_;
     
     // ============================================================
-    // Synchronisation SIMPLE
+    // SHARED STATE (pour coordination entre workers)
     // ============================================================
-    std::atomic<bool> packet_ready_{false};    // Paquet prêt à être traité
-    std::atomic<bool> shutdown_{false};        // Signal d'arrêt
+    
+    // Flags de contrôle
+    std::atomic<bool> packet_ready_{false};      // Nouveau paquet prêt
+    std::atomic<bool> drop_detected_{false};     // Un worker a trouvé DROP (early exit)
+    std::atomic<size_t> workers_finished_{0};    // Compteur : combien ont fini
+    std::atomic<bool> shutdown_{false};          // Signal de terminaison
+    
+    // Synchronisation
+    std::mutex start_mutex_;
+    std::condition_variable start_cv_;   // Pour réveiller les workers
+    
+    std::mutex done_mutex_;
+    std::condition_variable done_cv_;    // Pour que le main thread attende
     
     // Worker loop
     void WorkerLoop(size_t worker_id);
