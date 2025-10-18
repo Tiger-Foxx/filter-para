@@ -60,9 +60,9 @@ set(ORIGINAL_SOURCES
     src/tiger_system.cpp
     src/utils.cpp
     src/engine/rule_engine.cpp
-    src/engine/worker_pool.cpp
+    src/engine/fast_sequential_engine.cpp
+    src/engine/ultra_parallel_engine.cpp
     src/handlers/packet_handler.cpp
-    src/handlers/tcp_reassembler.cpp
     src/loaders/rule_loader.cpp
 )
 

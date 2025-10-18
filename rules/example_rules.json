@@ -1,190 +1,173 @@
 {
   "rules": [
-    
     {
-      "id": "block_tor_ips",
+      "id": "block_tor_ips_1",
       "layer": 3,
       "type": "ip_src_in",
       "values": ["192.42.116.0/24", "199.87.154.0/24", "185.220.100.0/24"],
       "action": "drop"
     },
     {
-      "id": "block_china_russia",
-      "layer": 3, 
-      "type": "ip_src_country",
-      "values": ["CN", "RU"],
-      "action": "drop"
-    },
-    {
-      "id": "block_ssh_brute",
-      "layer": 4,
-      "type": "tcp_dst_port",
-      "values": [22],
-      "action": "drop"
-    },
-       {
-      "id": "block_ssh_brute",
-      "layer": 4,
-      "type": "tcp_dst_port",
-      "values": [22],
-      "action": "drop"
-    },
-       {
-      "id": "block_ssh_brute",
-      "layer": 4,
-      "type": "tcp_dst_port",
-      "values": [22],
-      "action": "drop"
-    },
-       {
-      "id": "block_ssh_brute",
-      "layer": 4,
-      "type": "tcp_dst_port",
-      "values": [22],
-      "action": "drop"
-    },
-       {
-      "id": "block_ssh_brute",
-      "layer": 4,
-      "type": "tcp_dst_port",
-      "values": [22],
-      "action": "drop"
-    },
-    {
-      "id": "block_sqli_attempts",
-      "layer": 7,
-      "type": "http_uri_regex",
-      "values": ["(?i)(union|select|insert|drop).*from", "(?i)or.*1.*=.*1"],
-      "action": "drop"
-    },
-    {
-      "id": "block_scanner_ua",
-      "layer": 7,
-      "type": "http_header_contains",
-      "field": "user-agent",
-      "values": ["sqlmap", "nmap", "masscan", "nikto"],
-      "action": "drop"
-    },
-   
-    {
-      "id": "block_xss_payload",
-      "layer": 7,
-      "type": "http_uri_regex", 
-      "values": ["(?i)<script.*>", "(?i)javascript:", "(?i)onload.*="],
-      "action": "drop"
-    },
-   
-    {
-      "id": "block_iran_north_korea",
-      "layer": 3,
-      "type": "ip_src_country",
-      "values": ["IR", "KP"],
-      "action": "drop"
-    },
-    {
-      "id": "block_botnet_ips_1",
+      "id": "block_tor_ips_2",
       "layer": 3,
       "type": "ip_src_in",
-      "values": ["45.142.122.0/24", "91.240.118.0/24", "194.147.78.0/24", "23.94.218.0/24"],
+      "values": ["192.42.117.0/24", "185.220.101.0/24", "188.114.97.0/24"],
       "action": "drop"
     },
     {
-      "id": "block_botnet_ips_2",
+      "id": "block_malicious_range_1",
       "layer": 3,
       "type": "ip_src_in",
-      "values": ["103.253.147.0/24", "185.220.101.0/24", "188.114.97.0/24", "95.142.46.0/24"],
+      "values": ["45.142.122.0/24", "91.240.118.0/24", "194.147.78.0/24"],
       "action": "drop"
     },
     {
-      "id": "block_botnet_ips_2",
+      "id": "block_malicious_range_2",
       "layer": 3,
       "type": "ip_src_in",
-      "values": ["103.253.147.0/24", "185.220.101.0/24", "188.114.97.0/24", "95.142.46.0/24"],
+      "values": ["103.253.147.0/24", "95.142.46.0/24", "167.99.0.0/16"],
       "action": "drop"
     },
     {
-      "id": "block_vpn_ranges_1",
+      "id": "block_scanner_range_1",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["185.165.168.0/22", "82.221.128.0/24", "192.241.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_scanner_range_2",
+      "layer": 3,
+      "type": "ip_src_in",
+      "values": ["178.62.0.0/16", "46.101.0.0/16", "174.138.0.0/16"],
+      "action": "drop"
+    },
+    {
+      "id": "block_proxy_networks",
       "layer": 3,
       "type": "ip_src_in",
       "values": ["162.255.202.0/24", "172.64.80.0/24", "104.27.0.0/20"],
       "action": "drop"
     },
     {
-      "id": "block_vpn_ranges_2",
+      "id": "block_vpn_ranges",
       "layer": 3,
       "type": "ip_src_in",
       "values": ["198.41.128.0/17", "173.245.48.0/20", "103.21.244.0/22"],
       "action": "drop"
     },
     {
-      "id": "block_datacenter_ranges",
+      "id": "block_datacenter_abuse",
       "layer": 3,
       "type": "ip_src_in",
-      "values": ["74.125.0.0/16", "173.194.0.0/16", "72.14.192.0/18", "66.249.64.0/19"],
+      "values": ["74.125.0.0/16", "173.194.0.0/16", "72.14.192.0/18"],
       "action": "drop"
     },
     {
-      "id": "block_scanner_ranges_1",
+      "id": "block_cloud_abuse",
       "layer": 3,
       "type": "ip_src_in",
-      "values": ["185.165.168.0/22", "82.221.128.0/24", "192.241.0.0/16", "159.203.0.0/16"],
+      "values": ["13.107.42.0/24", "40.96.0.0/12", "52.96.0.0/12"],
       "action": "drop"
     },
     {
-      "id": "block_botnet_ips_2",
-      "layer": 3,
-      "type": "ip_src_in",
-      "values": ["103.253.147.0/24", "185.220.101.0/24", "188.114.97.0/24", "95.142.46.0/24"],
+      "id": "block_ssh_brute",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [22],
       "action": "drop"
     },
     {
-      "id": "block_botnet_ips_2",
-      "layer": 3,
-      "type": "ip_src_in",
-      "values": ["103.253.147.0/24", "185.220.101.0/24", "188.114.97.0/24", "95.142.46.0/24"],
+      "id": "block_telnet",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [23],
       "action": "drop"
     },
     {
-      "id": "block_scanner_ranges_2",
-      "layer": 3,
-      "type": "ip_src_in",
-      "values": ["167.99.0.0/16", "178.62.0.0/16", "46.101.0.0/16", "174.138.0.0/16"],
+      "id": "block_rdp",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [3389],
       "action": "drop"
     },
     {
-      "id": "block_proxy_ranges",
-      "layer": 3,
-      "type": "ip_src_in",
-      "values": ["185.220.102.0/24", "185.220.103.0/24", "199.87.155.0/24", "192.42.117.0/24"],
+      "id": "block_mysql_external",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [3306],
       "action": "drop"
     },
     {
-      "id": "block_suspicious_geolocations",
-      "layer": 3,
-      "type": "ip_src_country",
-      "values": ["SY", "AF", "IQ", "PK", "BD"],
+      "id": "block_postgres_external",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [5432],
       "action": "drop"
     },
     {
-      "id": "block_cloud_providers_abuse",
-      "layer": 3,
-      "type": "ip_src_in",
-      "values": ["13.107.42.0/24", "40.96.0.0/12", "52.96.0.0/12", "20.190.0.0/15"],
+      "id": "block_mongodb_external",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [27017],
       "action": "drop"
     },
     {
-      "id": "block_aws_abuse_ranges",
-      "layer": 3,
-      "type": "ip_src_in",
-      "values": ["54.230.0.0/15", "52.84.0.0/15", "54.182.0.0/16", "54.192.0.0/16"],
+      "id": "block_redis_external",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [6379],
       "action": "drop"
     },
     {
-      "id": "block_google_cloud_abuse",
-      "layer": 3,
-      "type": "ip_src_in",
-      "values": ["35.191.0.0/16", "130.211.0.0/22", "35.235.240.0/20", "34.64.0.0/10"],
+      "id": "block_elasticsearch",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [9200, 9300],
+      "action": "drop"
+    },
+    {
+      "id": "block_vnc",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [5900, 5901, 5902],
+      "action": "drop"
+    },
+    {
+      "id": "block_smb",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [445, 139],
+      "action": "drop"
+    },
+       {
+      "id": "block_ssh_brute",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [22],
+      "action": "drop"
+    },
+       {
+      "id": "block_ssh_brute",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [22],
+      "action": "drop"
+    },
+       {
+      "id": "block_ssh_brute",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [22],
+      "action": "drop"
+    },
+       {
+      "id": "block_ssh_brute",
+      "layer": 4,
+      "type": "tcp_dst_port",
+      "values": [22],
       "action": "drop"
     }
+
   ]
 }

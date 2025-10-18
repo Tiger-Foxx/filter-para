@@ -62,6 +62,21 @@ struct Rule {
     // Methods
     void CompilePatterns();
     void CompileIPRanges();
+    
+    // Clone method for rule partitioning
+    std::unique_ptr<Rule> Clone() const {
+        auto cloned = std::make_unique<Rule>();
+        cloned->id = this->id;
+        cloned->layer = this->layer;
+        cloned->type = this->type;
+        cloned->type_str = this->type_str;
+        cloned->action = this->action;
+        cloned->values = this->values;
+        cloned->field = this->field;
+        cloned->ip_ranges_ = this->ip_ranges_;
+        // Note: compiled_patterns_ pas copié car on recompile si besoin
+        return cloned;
+    }
 };
 
 // ============================================================

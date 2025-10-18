@@ -1,6 +1,7 @@
 #include "tiger_system.h"
 #include "utils.h"
-#include "engine/worker_pool.h"
+#include "engine/fast_sequential_engine.h"
+#include "engine/ultra_parallel_engine.h"
 #include "handlers/packet_handler.h"
 #include "loaders/rule_loader.h"
 
@@ -21,8 +22,8 @@ TigerSystem* TigerSystem::instance_ = nullptr;
 // CONSTRUCTOR / DESTRUCTOR
 // ============================================================
 TigerSystem::TigerSystem(const std::string& rules_file, int queue_num, 
-                         size_t num_workers, bool debug_mode)
-    : rules_file_(rules_file), queue_num_(queue_num), 
+                         const std::string& mode, size_t num_workers, bool debug_mode)
+    : rules_file_(rules_file), queue_num_(queue_num), mode_(mode),
       num_workers_(num_workers), debug_mode_(debug_mode),
       process_pid_(getpid()) {
     
@@ -30,8 +31,8 @@ TigerSystem::TigerSystem(const std::string& rules_file, int queue_num,
     
     std::cout << "\n";
     std::cout << "🐯 ========================================== 🦊\n";
-    std::cout << "   Tiger-Fox C++ Network Filtering System\n";
-    std::cout << "   Hybrid Multi-Worker Architecture\n";
+    std::cout << "   Tiger-Fox Ultra-Fast Network Filter\n";
+    std::cout << "   Mode: " << (mode_ == "sequential" ? "SEQUENTIAL" : "PARALLEL") << "\n";
     std::cout << "🐯 ========================================== 🦊\n";
     std::cout << "\n";
 }
@@ -75,19 +76,74 @@ bool TigerSystem::Initialize() {
         return false;
     }
     
-    // Initialize worker pool
-    std::cout << "\n🔧 Initializing worker pool..." << std::endl;
-    worker_pool_ = std::make_unique<WorkerPool>(rules_by_layer, num_workers_);
-    worker_pool_->Start();
+    // ============================================================
+    // CREATE ENGINE BASED ON MODE
+    // ============================================================
+    std::cout << "\n🔧 Initializing engine..." << std::endl;
     
-    // Update num_workers_ with actual count (in case it was 0 = auto)
-    auto stats = worker_pool_->GetStats();
-    size_t actual_workers = stats.num_workers;
+    // Compter le nombre de règles chargées
+    size_t original_rule_count = 0;
+    for (const auto& [layer, layer_rules] : rules_by_layer) {
+        original_rule_count += layer_rules.size();
+    }
     
-    // Initialize packet handler (dispatches to worker pool)
+    if (mode_ == "sequential") {
+        // ============================================================
+        // MODE SEQUENTIAL: Multiplier les règles par num_workers_
+        // pour avoir N fois plus de règles qu'un worker en mode parallel
+        // ============================================================
+        std::cout << "   Mode: SEQUENTIAL (single-threaded, hash O(1))" << std::endl;
+        std::cout << "   Multiplying rules by " << num_workers_ << " for fair comparison..." << std::endl;
+        
+        // Dupliquer les règles num_workers_ fois
+        std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>> multiplied_rules;
+        
+        for (size_t copy = 0; copy < num_workers_; ++copy) {
+            for (const auto& [layer, layer_rules] : rules_by_layer) {
+                for (const auto& rule : layer_rules) {
+                    auto cloned_rule = rule->Clone();
+                    // Ajouter suffix au ID pour distinguer les copies
+                    cloned_rule->id = rule->id + "_copy" + std::to_string(copy);
+                    // IMPORTANT: Recompiler les IP ranges pour la règle clonée
+                    cloned_rule->CompileIPRanges();
+                    multiplied_rules[layer].push_back(std::move(cloned_rule));
+                }
+            }
+        }
+        
+        size_t total_sequential_rules = original_rule_count * num_workers_;
+        std::cout << "   Total rules for sequential: " << total_sequential_rules 
+                  << " (" << original_rule_count << " × " << num_workers_ << ")" << std::endl;
+        
+        engine_ = std::make_unique<FastSequentialEngine>(multiplied_rules);
+        
+    } else if (mode_ == "parallel") {
+        // ============================================================
+        // MODE PARALLEL: Partitionner les règles entre workers
+        // Chaque worker aura ~(original_rule_count / num_workers_) règles
+        // ============================================================
+        std::cout << "   Mode: PARALLEL (" << num_workers_ << " workers racing)" << std::endl;
+        std::cout << "   Rules will be partitioned: ~" << (original_rule_count / num_workers_) 
+                  << " rules per worker" << std::endl;
+        
+        engine_ = std::make_unique<UltraParallelEngine>(rules_by_layer, num_workers_);
+        
+        // Set debug mode if enabled
+        auto* parallel_engine = dynamic_cast<UltraParallelEngine*>(engine_.get());
+        if (parallel_engine && debug_mode_) {
+            parallel_engine->SetDebugMode(true);
+        }
+    } else {
+        std::cerr << "❌ Error: Invalid mode: " << mode_ << std::endl;
+        return false;
+    }
+    
+    // ============================================================
+    // INITIALIZE PACKET HANDLER
+    // ============================================================
     std::cout << "🔧 Initializing packet handler..." << std::endl;
     packet_handler_ = std::make_unique<PacketHandler>(
-        queue_num_, worker_pool_.get(), debug_mode_
+        queue_num_, engine_.get(), debug_mode_
     );
     
     if (!packet_handler_->Initialize()) {
@@ -98,7 +154,7 @@ bool TigerSystem::Initialize() {
     std::cout << "\n✅ Tiger-Fox System initialized successfully!" << std::endl;
     std::cout << "   Process PID: " << process_pid_ << std::endl;
     std::cout << "   Queue number: " << queue_num_ << std::endl;
-    std::cout << "   Workers: " << actual_workers << std::endl;
+    std::cout << "   Mode: " << mode_ << std::endl;
     std::cout << "\n";
     
     return true;
@@ -108,7 +164,7 @@ bool TigerSystem::Initialize() {
 // RUN SYSTEM
 // ============================================================
 void TigerSystem::Run() {
-    if (!worker_pool_ || !packet_handler_) {
+    if (!engine_ || !packet_handler_) {
         std::cerr << "❌ Error: System not initialized" << std::endl;
         return;
     }
@@ -122,41 +178,10 @@ void TigerSystem::Run() {
     std::cout << "🚀 Tiger-Fox is now running!" << std::endl;
     std::cout << "   Press Ctrl+C to stop\n" << std::endl;
     
-    // Start packet handler callback
-    auto packet_callback = [this](bool dropped) {
-        // Callback optionnel pour traitement supplémentaire
-    };
-    
-    // Main packet processing loop
-    std::thread packet_thread([this, packet_callback]() {
-        packet_handler_->Start(packet_callback);
-    });
-    
-    // Stats monitoring loop
-    auto last_stats_time = std::chrono::steady_clock::now();
-    
-    while (running_.load(std::memory_order_acquire)) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        
-        auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_stats_time).count();
-        
-        // Print stats every 10 seconds
-        if (elapsed >= 10) {
-            PrintStats();
-            last_stats_time = now;
-        }
-    }
+    // Start packet handler (blocking call)
+    packet_handler_->Start();
     
     std::cout << "\n🛑 Shutting down Tiger-Fox..." << std::endl;
-    
-    // Stop packet handler
-    packet_handler_->Stop();
-    
-    // Wait for packet thread
-    if (packet_thread.joinable()) {
-        packet_thread.join();
-    }
 }
 
 // ============================================================
@@ -171,23 +196,19 @@ void TigerSystem::Shutdown() {
     
     std::cout << "\n🧹 Cleaning up resources..." << std::endl;
     
-    // Shutdown worker pool
-    if (worker_pool_) {
-        worker_pool_->Stop();
-        worker_pool_.reset();
-    }
-    
     // Shutdown packet handler
     if (packet_handler_) {
         packet_handler_->Stop();
         packet_handler_.reset();
     }
     
+    // Shutdown engine
+    if (engine_) {
+        engine_.reset();
+    }
+    
     // Cleanup iptables
     CleanupIPTables();
-    
-    // Print final report
-    PrintFinalReport();
     
     std::cout << "✅ Tiger-Fox stopped cleanly" << std::endl;
 }
@@ -331,40 +352,5 @@ void TigerSystem::PrintSystemInfo() const {
 }
 
 // ============================================================
-// STATISTICS
+// END OF FILE
 // ============================================================
-void TigerSystem::PrintStats() const {
-    if (!worker_pool_ || !packet_handler_) {
-        return;
-    }
-    
-    auto worker_stats = worker_pool_->GetStats();
-    auto handler_stats = packet_handler_->GetStats();
-    
-    std::cout << "\n📊 ===== Real-Time Statistics =====" << std::endl;
-    std::cout << "   Total packets: " << handler_stats.total_packets << std::endl;
-    std::cout << "   Dropped: " << handler_stats.dropped_packets << std::endl;
-    std::cout << "   Accepted: " << handler_stats.accepted_packets << std::endl;
-    std::cout << "   Workers active: " << worker_stats.num_workers << std::endl;
-    std::cout << "===================================\n" << std::endl;
-}
-
-void TigerSystem::PrintFinalReport() const {
-    std::cout << "\n";
-    std::cout << "📊 ========================================== 📊\n";
-    std::cout << "   Tiger-Fox Final Performance Report\n";
-    std::cout << "📊 ========================================== 📊\n";
-    std::cout << "\n";
-    
-    if (worker_pool_) {
-        worker_pool_->PrintStats();
-    }
-    
-    if (packet_handler_) {
-        packet_handler_->PrintStats();
-    }
-    
-    std::cout << "\n";
-    std::cout << "🐯 Thank you for using Tiger-Fox! 🦊\n";
-    std::cout << "\n";
-}
