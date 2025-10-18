@@ -1,5 +1,8 @@
 #include "packet_handler.h"
 #include "../engine/rule_engine.h"
+#include "../engine/optimized_parallel_engine.h"
+#include "../engine/fast_packet_parser.h"
+#include "../engine/parsed_packet.h"
 #include "../utils.h"
 
 #include <iostream>
@@ -223,24 +226,78 @@ int PacketHandler::HandlePacket(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
     }
 
     // ============================================================
-    // ZERO-COPY PACKET PARSING (stack allocation)
+    // ULTRA-FAST PARSING avec FastPacketParser (SIMD si AVX2)
     // ============================================================
-    PacketData parsed_packet;
-    if (!ParsePacket(packet_data, packet_len, parsed_packet)) {
+    ParsedPacket parsed_packet;
+    if (!FastPacketParser::Parse(packet_data, packet_len, parsed_packet)) {
+        // Parsing échoué → ACCEPT par défaut
+        if (debug_mode_) {
+            std::cout << "[PacketHandler] Failed to parse packet (id=" << nfq_id << ")" << std::endl;
+        }
         return nfq_set_verdict(qh, nfq_id, NF_ACCEPT, 0, nullptr);
+    }
+    
+    // Stocker contexte NFQUEUE pour engine
+    parsed_packet.qh = qh;
+    parsed_packet.nfq_id = nfq_id;
+    
+    if (debug_mode_) {
+        struct in_addr src, dst;
+        src.s_addr = htonl(parsed_packet.src_ip);
+        dst.s_addr = htonl(parsed_packet.dst_ip);
+        std::cout << "[PacketHandler] Packet parsed: src=" << inet_ntoa(src) 
+                  << " dst=" << inet_ntoa(dst) 
+                  << " proto=" << static_cast<int>(parsed_packet.protocol)
+                  << " sport=" << parsed_packet.src_port
+                  << " dport=" << parsed_packet.dst_port << std::endl;
     }
 
     // ============================================================
-    // DIRECT INLINE FILTERING - NO BUFFERING, NO ASYNC
+    // FILTRAGE : Détection OptimizedParallelEngine pour path rapide
     // ============================================================
-    FilterResult result = engine_->FilterPacket(parsed_packet);
+    FilterResult result;
     
+    auto* optimized_engine = dynamic_cast<OptimizedParallelEngine*>(engine_);
+    if (optimized_engine) {
+        // Path rapide : utilise FilterPacketFast (zero-copy, ParsedPacket direct)
+        result = optimized_engine->FilterPacketFast(parsed_packet);
+        
+        if (debug_mode_) {
+            std::cout << "[PacketHandler] OptimizedParallelEngine used (time=" 
+                      << result.processing_time_ms << "ms)" << std::endl;
+        }
+    } else {
+        // Fallback : conversion ParsedPacket → PacketData (pour legacy engines)
+        PacketData legacy_packet;
+        if (!ParsePacket(packet_data, packet_len, legacy_packet)) {
+            return nfq_set_verdict(qh, nfq_id, NF_ACCEPT, 0, nullptr);
+        }
+        
+        result = engine_->FilterPacket(legacy_packet);
+        
+        if (debug_mode_) {
+            std::cout << "[PacketHandler] Legacy engine used (time=" 
+                      << result.processing_time_ms << "ms)" << std::endl;
+        }
+    }
+    
+    // ============================================================
+    // VERDICT FINAL
+    // ============================================================
     uint32_t verdict = (result.action == RuleAction::DROP) ? NF_DROP : NF_ACCEPT;
     
     if (result.action == RuleAction::DROP) {
         dropped_packets_.fetch_add(1, std::memory_order_relaxed);
+        
         if (debug_mode_) {
-            std::cout << "DROP by rule: " << result.rule_id << std::endl;
+            std::cout << "[PacketHandler] ❌ DROP by rule: " << result.rule_id 
+                      << " (layer=" << static_cast<int>(result.layer)
+                      << ", time=" << result.processing_time_ms << "ms)" << std::endl;
+        }
+    } else {
+        if (debug_mode_) {
+            std::cout << "[PacketHandler] ✅ ACCEPT (time=" 
+                      << result.processing_time_ms << "ms)" << std::endl;
         }
     }
     

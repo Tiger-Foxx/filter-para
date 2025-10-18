@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 project(TigerFoxHybrid VERSION 1.0.0 LANGUAGES CXX)
 
 # C++ Configuration
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -12,7 +12,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Compiler flags for performance
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -mtune=native -DNDEBUG -flto")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -mtune=native -DNDEBUG -flto -mavx2")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -ggdb -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer")
 
 # Additional optimizations for Release
@@ -21,6 +21,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
         -ffast-math
         -funroll-loops
         -fprefetch-loop-arrays
+        -mavx2
     )
 endif()
 
@@ -62,7 +63,7 @@ set(ORIGINAL_SOURCES
     src/engine/rule_engine.cpp
     src/engine/fast_sequential_engine.cpp
     src/engine/successive_engine.cpp
-    src/engine/true_parallel_engine.cpp
+    src/engine/optimized_parallel_engine.cpp
     src/handlers/packet_handler.cpp
     src/loaders/rule_loader.cpp
 )

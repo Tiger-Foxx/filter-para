@@ -88,6 +88,10 @@ struct FilterResult {
     double processing_time_ms;
     RuleLayer layer;
 
+    // Constructeur par défaut
+    FilterResult() 
+        : action(RuleAction::ACCEPT), rule_id(""), processing_time_ms(0.0), layer(RuleLayer::L3) {}
+    
     FilterResult(RuleAction act, const std::string& id, double time, RuleLayer lyr)
         : action(act), rule_id(id), processing_time_ms(time), layer(lyr) {}
 };

@@ -2,7 +2,7 @@
 #include "utils.h"
 #include "engine/fast_sequential_engine.h"
 #include "engine/successive_engine.h"
-#include "engine/true_parallel_engine.h"
+#include "engine/optimized_parallel_engine.h"
 #include "handlers/packet_handler.h"
 #include "loaders/rule_loader.h"
 
@@ -113,13 +113,15 @@ bool TigerSystem::Initialize() {
         
     } else if (mode_ == "parallel") {
         // ============================================================
-        // MODE PARALLEL: True parallelism avec workers permanents
+        // MODE PARALLEL: OptimizedParallelEngine avec futex + barrier + SIMD
         // ============================================================
-        std::cout << "   Mode: PARALLEL (true parallelism with " << num_workers_ << " workers)" << std::endl;
+        std::cout << "   Mode: OPTIMIZED PARALLEL (futex + barrier + SIMD with " 
+                  << num_workers_ << " workers)" << std::endl;
         std::cout << "   Rules partitioned: ~" << (original_rule_count / num_workers_) 
                   << " rules per worker" << std::endl;
+        std::cout << "   Optimizations: CPU affinity, early exit, cache alignment" << std::endl;
         
-        engine_ = std::make_unique<TrueParallelEngine>(rules_by_layer, num_workers_);
+        engine_ = std::make_unique<OptimizedParallelEngine>(rules_by_layer, num_workers_);
     } else {
         std::cerr << "❌ Error: Invalid mode: " << mode_ << std::endl;
         return false;
