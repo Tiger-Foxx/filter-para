@@ -123,22 +123,24 @@ void UltraParallelEngine::StopWorkers() {
 void UltraParallelEngine::WorkerThreadLoop(size_t worker_id) {
     while (true) {
         // Wait for a packet to be available
-        {
-            std::unique_lock<std::mutex> lock(packet_mutex_);
-            packet_ready_cv_.wait(lock, [this]() {
-                return packet_available_.load(std::memory_order_acquire) || 
-                       shutdown_.load(std::memory_order_acquire);
-            });
-            
-            // Check shutdown
-            if (shutdown_.load(std::memory_order_acquire)) {
-                break;
-            }
+        std::unique_lock<std::mutex> lock(packet_mutex_);
+        packet_ready_cv_.wait(lock, [this]() {
+            return packet_available_.load(std::memory_order_acquire) || 
+                   shutdown_.load(std::memory_order_acquire);
+        });
+        
+        // Check shutdown
+        if (shutdown_.load(std::memory_order_acquire)) {
+            break;
         }
         
-        // Process the packet
-        if (current_packet_) {
-            WorkerEvaluate(*current_packet_, worker_id);
+        // Copy packet pointer locally before unlocking
+        const PacketData* packet_to_process = current_packet_;
+        lock.unlock();
+        
+        // Process the packet (WITHOUT holding the lock)
+        if (packet_to_process) {
+            WorkerEvaluate(*packet_to_process, worker_id);
         }
         
         // Signal that this worker is done
@@ -200,17 +202,20 @@ FilterResult UltraParallelEngine::FilterPacket(const PacketData& packet) {
     // Réveiller tous les workers
     packet_ready_cv_.notify_all();
     
-    // Attendre que tous les workers aient fini
+    // Attendre que tous les workers aient fini (sans lock sur packet_mutex_)
     {
-        std::unique_lock<std::mutex> lock(packet_mutex_);
+        std::unique_lock<std::mutex> lock(workers_done_mutex_);
         workers_done_cv_.wait(lock, [this]() {
             return workers_finished_.load(std::memory_order_acquire) == num_workers_;
         });
     }
     
     // Reset packet availability pour le prochain paquet
-    packet_available_.store(false, std::memory_order_release);
-    current_packet_ = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(packet_mutex_);
+        packet_available_.store(false, std::memory_order_release);
+        current_packet_ = nullptr;
+    }
     
     // Retourner le résultat
     if (race_state_.verdict_found.load(std::memory_order_acquire)) {

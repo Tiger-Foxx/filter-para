@@ -159,13 +159,18 @@ void PacketHandler::Start() {
 
         // Process packet immediately (inline, no queuing)
         nfq_handle_packet(nfq_handle_, buffer, len);
+        
+        // Log every 1000 packets (ONLY in debug mode)
+        if (debug_mode_) {
+            uint64_t total = total_packets_.load(std::memory_order_relaxed);
+            if (total % 1000 == 0) {
+                uint64_t dropped = dropped_packets_.load(std::memory_order_relaxed);
+                std::cout << "📊 Processed: " << total << " packets (Dropped: " << dropped << ")" << std::endl;
+            }
+        }
     }
     
-    if (debug_mode_) {
-        std::cout << "🛑 PacketHandler stopped" << std::endl;
-        std::cout << "   Total packets: " << total_packets_.load() << std::endl;
-        std::cout << "   Dropped: " << dropped_packets_.load() << std::endl;
-    }
+    std::cout << "\n🛑 PacketHandler stopped" << std::endl;
 }
 
 // ============================================================

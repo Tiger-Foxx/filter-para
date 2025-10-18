@@ -64,7 +64,8 @@ private:
     const PacketData* current_packet_{nullptr};
     
     // Synchronization for workers
-    std::mutex packet_mutex_;
+    std::mutex packet_mutex_;               // Protects current_packet_ and packet_available_
+    std::mutex workers_done_mutex_;         // Separate mutex for workers completion
     std::condition_variable packet_ready_cv_;
     std::condition_variable workers_done_cv_;
     
