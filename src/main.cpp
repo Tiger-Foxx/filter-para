@@ -83,13 +83,14 @@ CommandLineArgs ParseArguments(int argc, char* argv[]) {
     
     // Define long options
     static struct option long_options[] = {
-        {"mode",     required_argument, 0, 'm'},
-        {"rules",    required_argument, 0, 'r'},
-        {"queue",    required_argument, 0, 'q'},
-        {"workers",  required_argument, 0, 'w'},
-        {"verbose",  no_argument,       0, 'v'},
-        {"help",     no_argument,       0, 'h'},
-        {"version",  no_argument,       0, 'V'},
+        {"mode",      required_argument, 0, 'm'},
+        {"rules",     required_argument, 0, 'r'},
+        {"queue",     required_argument, 0, 'q'},
+        {"queue-num", required_argument, 0, 'q'},  // Alias pour --queue
+        {"workers",   required_argument, 0, 'w'},
+        {"verbose",   no_argument,       0, 'v'},
+        {"help",      no_argument,       0, 'h'},
+        {"version",   no_argument,       0, 'V'},
         {0, 0, 0, 0}
     };
     

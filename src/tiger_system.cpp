@@ -66,15 +66,21 @@ bool TigerSystem::Initialize() {
     }
     
     // Setup IP forwarding
-    if (!EnableIPForwarding()) {
+    if (system("sysctl -w net.ipv4.ip_forward=1 > /dev/null 2>&1") != 0) {
         std::cerr << "⚠️  Warning: Failed to enable IP forwarding" << std::endl;
     }
     
-    // Setup iptables rules
+    // Setup iptables rules - DISABLED (manual control preferred)
+    // User should configure iptables manually before running:
+    // sudo iptables -I FORWARD -s 10.10.1.10 -d 10.10.2.20 -j NFQUEUE --queue-num 0
+    /*
     if (!SetupIPTables()) {
         std::cerr << "❌ Error: Failed to setup iptables" << std::endl;
         return false;
     }
+    */
+    std::cout << "ℹ️  iptables configuration skipped (manual control)" << std::endl;
+    std::cout << "   Please ensure iptables rules are configured before running!" << std::endl;
     
     // ============================================================
     // CREATE ENGINE BASED ON MODE
@@ -207,8 +213,13 @@ void TigerSystem::Shutdown() {
         engine_.reset();
     }
     
-    // Cleanup iptables
+    // Cleanup iptables - DISABLED (manual control preferred)
+    // User should remove iptables rules manually:
+    // sudo iptables -D FORWARD -s 10.10.1.10 -d 10.10.2.20 -j NFQUEUE --queue-num 0
+    /*
     CleanupIPTables();
+    */
+    std::cout << "ℹ️  iptables cleanup skipped (manual control)" << std::endl;
     
     std::cout << "✅ Tiger-Fox stopped cleanly" << std::endl;
 }
