@@ -121,22 +121,42 @@ void UltraParallelEngine::StopWorkers() {
 // WORKER THREAD LOOP (PERMANENT THREAD)
 // ============================================================
 void UltraParallelEngine::WorkerThreadLoop(size_t worker_id) {
+    if (debug_mode_) {
+        std::cout << "[WORKER-" << worker_id << "] 🚀 Thread started" << std::endl;
+    }
+    
     while (true) {
         // Wait for a packet to be available
         std::unique_lock<std::mutex> lock(packet_mutex_);
+        
+        if (debug_mode_) {
+            std::cout << "[WORKER-" << worker_id << "] 💤 Waiting for packet..." << std::endl;
+        }
+        
         packet_ready_cv_.wait(lock, [this]() {
             return packet_available_.load(std::memory_order_acquire) || 
                    shutdown_.load(std::memory_order_acquire);
         });
         
+        if (debug_mode_) {
+            std::cout << "[WORKER-" << worker_id << "] 👁️ Woke up!" << std::endl;
+        }
+        
         // Check shutdown
         if (shutdown_.load(std::memory_order_acquire)) {
+            if (debug_mode_) {
+                std::cout << "[WORKER-" << worker_id << "] 🛑 Shutdown signal received" << std::endl;
+            }
             break;
         }
         
         // Copy packet pointer locally before unlocking
         const PacketData* packet_to_process = current_packet_;
         lock.unlock();
+        
+        if (debug_mode_) {
+            std::cout << "[WORKER-" << worker_id << "] 🔍 Processing packet..." << std::endl;
+        }
         
         // Process the packet (WITHOUT holding the lock)
         if (packet_to_process) {
@@ -146,8 +166,15 @@ void UltraParallelEngine::WorkerThreadLoop(size_t worker_id) {
         // Signal that this worker is done
         size_t finished_count = workers_finished_.fetch_add(1, std::memory_order_acq_rel) + 1;
         
+        if (debug_mode_) {
+            std::cout << "[WORKER-" << worker_id << "] ✔️ Finished (count: " << finished_count << ")" << std::endl;
+        }
+        
         // Last worker notifies main thread
         if (finished_count == num_workers_) {
+            if (debug_mode_) {
+                std::cout << "[WORKER-" << worker_id << "] 📣 I'm the last one, notifying main thread!" << std::endl;
+            }
             workers_done_cv_.notify_one();
         }
     }
@@ -159,11 +186,23 @@ void UltraParallelEngine::WorkerThreadLoop(size_t worker_id) {
 void UltraParallelEngine::WorkerEvaluate(const PacketData& packet, size_t worker_id) {
     // Early exit si un autre worker a déjà trouvé un DROP
     if (race_state_.verdict_found.load(std::memory_order_acquire)) {
+        if (debug_mode_) {
+            std::cout << "[WORKER-" << worker_id << "] ⏩ Skipping (another worker found DROP)" << std::endl;
+        }
         return;
+    }
+    
+    if (debug_mode_) {
+        std::cout << "[WORKER-" << worker_id << "] 🔎 Checking rules..." << std::endl;
     }
     
     // Évaluer le paquet avec les règles de CE worker uniquement
     FilterResult result = workers_[worker_id]->engine->FilterPacket(packet);
+    
+    if (debug_mode_) {
+        std::cout << "[WORKER-" << worker_id << "] 📝 Result: " 
+                  << (result.action == RuleAction::DROP ? "DROP" : "ACCEPT") << std::endl;
+    }
     
     // Si DROP trouvé, essayer de gagner la course
     if (result.action == RuleAction::DROP) {
@@ -177,9 +216,11 @@ void UltraParallelEngine::WorkerEvaluate(const PacketData& packet, size_t worker
             race_state_.result = result;
             
             if (debug_mode_) {
-                std::cout << "🏆 Worker " << worker_id << " WON - Rule: " 
+                std::cout << "[WORKER-" << worker_id << "] 🏆 WON THE RACE - Rule: " 
                           << result.rule_id << std::endl;
             }
+        } else if (debug_mode_) {
+            std::cout << "[WORKER-" << worker_id << "] 🥈 Found DROP but someone was faster" << std::endl;
         }
     }
 }
@@ -188,6 +229,11 @@ void UltraParallelEngine::WorkerEvaluate(const PacketData& packet, size_t worker
 // MAIN FILTERING FUNCTION - DISTRIBUER AUX WORKERS
 // ============================================================
 FilterResult UltraParallelEngine::FilterPacket(const PacketData& packet) {
+    if (debug_mode_) {
+        std::cout << "[PARALLEL] 🔵 New packet: " << packet.src_ip << ":" << packet.src_port 
+                  << " → " << packet.dst_ip << ":" << packet.dst_port << std::endl;
+    }
+    
     // Reset race state pour ce nouveau paquet
     race_state_.Reset();
     workers_finished_.store(0, std::memory_order_release);
@@ -199,15 +245,31 @@ FilterResult UltraParallelEngine::FilterPacket(const PacketData& packet) {
         packet_available_.store(true, std::memory_order_release);
     }
     
+    if (debug_mode_) {
+        std::cout << "[PARALLEL] 📢 Notifying " << num_workers_ << " workers..." << std::endl;
+    }
+    
     // Réveiller tous les workers
     packet_ready_cv_.notify_all();
+    
+    if (debug_mode_) {
+        std::cout << "[PARALLEL] ⏳ Waiting for workers to finish..." << std::endl;
+    }
     
     // Attendre que tous les workers aient fini (sans lock sur packet_mutex_)
     {
         std::unique_lock<std::mutex> lock(workers_done_mutex_);
         workers_done_cv_.wait(lock, [this]() {
-            return workers_finished_.load(std::memory_order_acquire) == num_workers_;
+            size_t finished = workers_finished_.load(std::memory_order_acquire);
+            if (debug_mode_ && finished > 0) {
+                std::cout << "[PARALLEL] 📊 Workers finished: " << finished << "/" << num_workers_ << std::endl;
+            }
+            return finished == num_workers_;
         });
+    }
+    
+    if (debug_mode_) {
+        std::cout << "[PARALLEL] ✅ All workers finished!" << std::endl;
     }
     
     // Reset packet availability pour le prochain paquet
@@ -220,9 +282,15 @@ FilterResult UltraParallelEngine::FilterPacket(const PacketData& packet) {
     // Retourner le résultat
     if (race_state_.verdict_found.load(std::memory_order_acquire)) {
         std::lock_guard<std::mutex> lock(race_state_.result_mutex);
+        if (debug_mode_) {
+            std::cout << "[PARALLEL] ❌ Verdict: DROP (rule: " << race_state_.result.rule_id << ")" << std::endl;
+        }
         return race_state_.result;
     }
     
     // Aucun worker n'a trouvé de DROP -> ACCEPT
+    if (debug_mode_) {
+        std::cout << "[PARALLEL] ✅ Verdict: ACCEPT" << std::endl;
+    }
     return FilterResult(RuleAction::ACCEPT, "", 0.0, RuleLayer::L3);
 }
