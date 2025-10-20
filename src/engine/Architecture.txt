@@ -1,0 +1,59 @@
+1. main() 
+   └─> TigerSystem(mode, workers)
+       └─> Initialize()
+           ├─> RuleLoader::LoadRules() → rules_by_layer
+           ├─> OptimizedParallelEngine(rules_by_layer, 3)
+           │   ├─> Clone & partition rules (8 per worker)
+           │   ├─> Create 3 FastSequentialEngine
+           │   ├─> Start 3 worker threads
+           │   └─> CPU affinity + futex+barrier init
+           └─> PacketHandler(engine)
+       └─> Run()
+           └─> packet_handler->Start()
+
+2. PacketHandler::Start() [MAIN LOOP]
+   while(running) {
+       recv() → netlink packet
+       └─> HandlePacket()
+           ├─> FastPacketParser::Parse() → ParsedPacket (80ns)
+           │   ├─> Parse L3: src_ip, dst_ip, protocol
+           │   ├─> Parse L4: ports, flags
+           │   └─> Init atomics: verdict=ACCEPT, drop_detected=false
+           │
+           ├─> optimized_engine->FilterPacketFast(parsed_packet)
+           │   │
+           │   ├─> PHASE 1: Publication (20ns)
+           │   │   ├─> drop_detected = false
+           │   │   ├─> current_packet_ = &parsed_packet
+           │   │   └─> packet_sequence_++
+           │   │
+           │   ├─> PHASE 2: Futex wake (60ns)
+           │   │   └─> futex_wake(3 workers)
+           │   │
+           │   ├─> PHASE 3: Workers parallèles (400ns total)
+           │   │   ├─> Worker 0: Eval rules[0-7]
+           │   │   ├─> Worker 1: Eval rules[8-15]
+           │   │   └─> Worker 2: Eval rules[16-23]
+           │   │       ├─> futex_wait() → réveil
+           │   │       ├─> Load packet
+           │   │       ├─> Check drop_detected → early exit?
+           │   │       ├─> Convert ParsedPacket → PacketData
+           │   │       ├─> FastSequentialEngine->FilterPacket()
+           │   │       ├─> If DROP: CAS verdict + signal
+           │   │       └─> barrier.arrive_and_wait()
+           │   │
+           │   ├─> PHASE 4: Barrier wait (120ns)
+           │   │   └─> sync_barrier_.arrive_and_wait()
+           │   │
+           │   ├─> PHASE 5: Result collection (20ns)
+           │   │   ├─> verdict = parsed_packet.verdict.load()
+           │   │   ├─> Find worker who matched (if DROP)
+           │   │   └─> current_packet_ = nullptr
+           │   │
+           │   └─> return FilterResult{action, rule_id, elapsed_ms, layer}
+           │
+           └─> nfq_set_verdict(verdict) → Kernel
+   }
+
+TOTAL: ~700ns per packet = 1.43M pkt/s (vs 1350ns sequential)
+SPEEDUP: 1.93x avec 300% CPU
