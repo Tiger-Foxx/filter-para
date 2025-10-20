@@ -279,23 +279,18 @@ void OptimizedParallelEngine::WorkerLoop(Worker* worker, size_t worker_id) {
         // Nouvelle séquence détectée = nouveau paquet disponible
         seen_seq = current_seq;
         
-        // Check shutdown avant traitement
-        if (!worker->running.load(std::memory_order_relaxed)) {
-            // Participer à la barrier avant de quitter pour éviter deadlock
-            sync_barrier_.arrive_and_drop();
-            break;
-        }
-        
         // === RÉCUPÉRATION DU PAQUET ===
         ParsedPacket* packet = current_packet_.load(std::memory_order_acquire);
         
         if (packet == nullptr) {
-            // Spurious wakeup ou shutdown - participer à la barrier quand même
+            // Spurious wakeup ou shutdown
+            // TOUJOURS participer à la barrier même si packet == nullptr
+            sync_barrier_.arrive_and_wait();
+            
+            // Check shutdown APRÈS la barrier
             if (!worker->running.load(std::memory_order_relaxed)) {
-                sync_barrier_.arrive_and_drop();
                 break;
             }
-            sync_barrier_.arrive_and_wait();
             continue;
         }
         
@@ -360,14 +355,13 @@ void OptimizedParallelEngine::WorkerLoop(Worker* worker, size_t worker_id) {
         stats_.worker_packets[worker_id].fetch_add(1, std::memory_order_relaxed);
         
         // === SYNCHRONISATION FINALE (BARRIER) ===
-        // Vérifier shutdown AVANT la barrier
+        // TOUJOURS participer à la barrier
+        sync_barrier_.arrive_and_wait();
+        
+        // Check shutdown APRÈS la barrier
         if (!worker->running.load(std::memory_order_relaxed)) {
-            sync_barrier_.arrive_and_drop();
             break;
         }
-        
-        // Attendre que tous les workers (+ main) arrivent
-        sync_barrier_.arrive_and_wait();
         
         // Après barrier, le main thread a récupéré les résultats
         // On peut continuer à la prochaine itération
