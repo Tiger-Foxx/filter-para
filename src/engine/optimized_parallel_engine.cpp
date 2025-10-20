@@ -28,7 +28,8 @@ OptimizedParallelEngine::OptimizedParallelEngine(
     const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules_by_layer,
     size_t num_workers
 ) : RuleEngine(rules_by_layer),
-    num_workers_(num_workers)
+    num_workers_(num_workers),
+    sync_barrier_(num_workers + 1)  // +1 pour le thread principal
 {
     if (num_workers == 0 || num_workers > 16) {
         throw std::invalid_argument("num_workers must be between 1 and 16");
@@ -188,17 +189,11 @@ FilterResult OptimizedParallelEngine::FilterPacketFast(ParsedPacket& parsed_pack
     // std::cout << "[OptimizedParallelEngine] Packet seq=" << seq 
     //           << " published, woken=" << woken << " workers" << std::endl;
     
-    // === PHASE 3 : SPIN-WAIT POUR WORKERS (plus rapide que barrier) ===
-    // Reset le compteur de workers terminés
-    workers_done_.store(0, std::memory_order_release);
+    // === PHASE 3 : BARRIER (ATTENDRE FIN) ===
+    // Le thread principal attend ici avec les workers
+    sync_barrier_.arrive_and_wait();
     
-    // Attendre que TOUS les workers aient fini (spin-wait actif)
-    while (workers_done_.load(std::memory_order_acquire) < num_workers_) {
-        _mm_pause(); // Hint CPU pour spin-wait efficace
-        // Coût : ~20-30ns au total (vs 120ns barrier)
-    }
-    
-    // Après spin-wait : tous les workers ont terminé leur évaluation
+    // Après la barrière : tous les workers ont terminé leur évaluation
     
     // === PHASE 4 : RÉCUPÉRATION RÉSULTAT ===
     uint32_t verdict = parsed_packet.verdict.load(std::memory_order_acquire);
@@ -286,6 +281,8 @@ void OptimizedParallelEngine::WorkerLoop(Worker* worker, size_t worker_id) {
         
         // Check shutdown avant traitement
         if (!worker->running.load(std::memory_order_relaxed)) {
+            // Participer à la barrier avant de quitter pour éviter deadlock
+            sync_barrier_.arrive_and_drop();
             break;
         }
         
@@ -293,7 +290,12 @@ void OptimizedParallelEngine::WorkerLoop(Worker* worker, size_t worker_id) {
         ParsedPacket* packet = current_packet_.load(std::memory_order_acquire);
         
         if (packet == nullptr) {
-            // Spurious wakeup ou shutdown
+            // Spurious wakeup ou shutdown - participer à la barrier quand même
+            if (!worker->running.load(std::memory_order_relaxed)) {
+                sync_barrier_.arrive_and_drop();
+                break;
+            }
+            sync_barrier_.arrive_and_wait();
             continue;
         }
         
@@ -357,19 +359,17 @@ void OptimizedParallelEngine::WorkerLoop(Worker* worker, size_t worker_id) {
         worker->local_packets_processed++;
         stats_.worker_packets[worker_id].fetch_add(1, std::memory_order_relaxed);
         
-        // === SYNCHRONISATION FINALE (ATOMIC COUNTER) ===
-        // Incrémenter le compteur de workers terminés
-        size_t done = workers_done_.fetch_add(1, std::memory_order_release) + 1;
-        
-        // Le DERNIER worker qui arrive réveille le main thread
-        if (done == num_workers_) {
-            // Reset le compteur pour le prochain paquet
-            workers_done_.store(0, std::memory_order_release);
-            
-            // Signaler au main thread que tous les workers ont fini
-            // (le main thread spin-wait sur workers_done_)
+        // === SYNCHRONISATION FINALE (BARRIER) ===
+        // Vérifier shutdown AVANT la barrier
+        if (!worker->running.load(std::memory_order_relaxed)) {
+            sync_barrier_.arrive_and_drop();
+            break;
         }
         
+        // Attendre que tous les workers (+ main) arrivent
+        sync_barrier_.arrive_and_wait();
+        
+        // Après barrier, le main thread a récupéré les résultats
         // On peut continuer à la prochaine itération
     }
     
