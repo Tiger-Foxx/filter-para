@@ -11,8 +11,8 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# Compiler flags for performance
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -mtune=native -DNDEBUG -flto -mavx2")
+# Compiler flags for performance (sans forcer AVX2)
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -mtune=native -DNDEBUG -flto")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3 -ggdb -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer")
 
 # Additional optimizations for Release
@@ -21,7 +21,6 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
         -ffast-math
         -funroll-loops
         -fprefetch-loop-arrays
-        -mavx2
     )
 endif()
 
