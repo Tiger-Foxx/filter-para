@@ -91,8 +91,8 @@ OptimizedParallelEngine::OptimizedParallelEngine(
                   << " | Rules [" << rule_start << "-" << rule_end << ") = " 
                   << worker_rule_count << " rules" << std::endl;
         
-        // Créer le FastSequentialEngine pour ce worker
-        worker->engine = std::make_unique<FastSequentialEngine>(worker_rules_by_layer);
+        // Créer le TrueSequentialEngine pour ce worker (parcours règle par règle)
+        worker->engine = std::make_unique<TrueSequentialEngine>(worker_rules_by_layer);
         
         rule_start = rule_end;
         

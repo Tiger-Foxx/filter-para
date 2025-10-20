@@ -1,6 +1,7 @@
 #include "tiger_system.h"
 #include "utils.h"
 #include "engine/fast_sequential_engine.h"
+#include "engine/true_sequential_engine.h"
 #include "engine/successive_engine.h"
 #include "engine/optimized_parallel_engine.h"
 #include "handlers/packet_handler.h"
@@ -96,11 +97,12 @@ bool TigerSystem::Initialize() {
     
     if (mode_ == "sequential") {
         // ============================================================
-        // MODE SEQUENTIAL: 1 thread, toutes les règles (baseline)
+        // MODE SEQUENTIAL: 1 thread, VRAIE traversée règle par règle
         // ============================================================
-        std::cout << "   Mode: SEQUENTIAL (1 thread, all " << original_rule_count << " rules)" << std::endl;
+        std::cout << "   Mode: TRUE SEQUENTIAL (1 thread, rule-by-rule traversal of " 
+                  << original_rule_count << " rules)" << std::endl;
         
-        engine_ = std::make_unique<FastSequentialEngine>(rules_by_layer);
+        engine_ = std::make_unique<TrueSequentialEngine>(rules_by_layer);
         
     } else if (mode_ == "successive") {
         // ============================================================

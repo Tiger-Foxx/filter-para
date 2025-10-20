@@ -1,7 +1,7 @@
 #pragma once
 
 #include "rule_engine.h"
-#include "fast_sequential_engine.h"
+#include "true_sequential_engine.h"
 #include "parsed_packet.h"
 #include <atomic>
 #include <thread>
@@ -90,7 +90,8 @@ private:
         int cpu_id{-1};
         
         // Engine avec règles partitionnées (1/3 des règles totales)
-        std::unique_ptr<FastSequentialEngine> engine;
+        // UTILISE TrueSequentialEngine pour parcours règle par règle (comparaison juste)
+        std::unique_ptr<TrueSequentialEngine> engine;
         
         // Résultat local (pas atomic, lecture après barrier)
         RuleAction my_result{RuleAction::ACCEPT};
