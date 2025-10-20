@@ -6,6 +6,7 @@
 #include <chrono>
 #include <iostream>
 #include <arpa/inet.h>
+#include <immintrin.h>  // Pour _mm_pause()
 
 // ============================================================================
 // FUTEX WRAPPERS (Linux-only syscalls directs)
@@ -180,12 +181,9 @@ FilterResult OptimizedParallelEngine::FilterPacketFast(ParsedPacket& parsed_pack
     // Incrémenter la séquence (acquire-release ordering)
     uint64_t seq = packet_sequence_.fetch_add(1, std::memory_order_acq_rel);
     
-    // === PHASE 2 : WAKEUP (FUTEX) ===
-    // Réveiller TOUS les workers en un seul syscall (~50ns)
-    int woken = futex_wake(&packet_sequence_, static_cast<int>(num_workers_));
-    stats_.futex_wakes.fetch_add(1, std::memory_order_relaxed);
-    
-    (void)woken; // Éviter warning unused
+    // === PAS DE FUTEX WAKE ===
+    // Les workers tournent en spin-wait actif, ils détectent automatiquement
+    // le changement de séquence en ~5-10ns (vs 60ns futex + context switch)
     
     // LOG: Paquet publié
     // std::cout << "[OptimizedParallelEngine] Packet seq=" << seq 
@@ -260,35 +258,22 @@ void OptimizedParallelEngine::WorkerLoop(Worker* worker, size_t worker_id) {
     std::cout << "[OptimizedParallelEngine] Worker " << worker_id 
               << " starting on thread " << std::this_thread::get_id() << std::endl;
     
-    // === CPU AFFINITY (Pinning sur core dédié) ===
-    if (worker->cpu_id >= 0) {
-        cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(worker->cpu_id, &cpuset);
-        
-        if (pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset) == 0) {
-            std::cout << "[OptimizedParallelEngine] Worker " << worker_id 
-                      << " pinned to CPU " << worker->cpu_id << std::endl;
-        } else {
-            std::cerr << "[OptimizedParallelEngine] Warning: Failed to set CPU affinity for worker " 
-                      << worker_id << std::endl;
-        }
-    }
+    // === PAS DE CPU AFFINITY ===
+    // Laisser le scheduler Linux gérer librement les workers sur tous les cores
+    // pour maximiser l'utilisation CPU et éviter les contentions
     
     // Séquence vue par ce worker
     uint64_t seen_seq = packet_sequence_.load(std::memory_order_acquire);
     
     while (worker->running.load(std::memory_order_relaxed)) {
-        // === ATTENTE FUTEX (Sleep efficace avec ~0% CPU) ===
+        // === SPIN-WAIT ACTIF (100% CPU mais ultra-rapide ~5ns) ===
         uint64_t current_seq = packet_sequence_.load(std::memory_order_acquire);
         
-        if (current_seq == seen_seq) {
-            // Bloquer sur futex jusqu'à ce que packet_sequence_ change
-            futex_wait(&packet_sequence_, seen_seq);
-            // Futex retourne si :
-            // - packet_sequence_ != seen_seq (nouveau paquet)
-            // - ou signal/spurious wakeup (on re-check la condition)
-            continue;
+        while (current_seq == seen_seq && worker->running.load(std::memory_order_relaxed)) {
+            // Busy-wait actif : on tourne en boucle sans dormir
+            // Coût : 100% CPU mais détection instantanée (~5-10ns)
+            _mm_pause(); // Hint CPU pour spin-wait (évite pipeline stalls)
+            current_seq = packet_sequence_.load(std::memory_order_acquire);
         }
         
         // Nouvelle séquence détectée = nouveau paquet disponible
@@ -318,19 +303,13 @@ void OptimizedParallelEngine::WorkerLoop(Worker* worker, size_t worker_id) {
         worker->matched_rule_id.clear();
         worker->matched_layer = RuleLayer::L3;
         
-        // Early exit check : si un autre worker a déjà trouvé DROP, skip
-        if (packet->drop_detected.load(std::memory_order_acquire)) {
-            // Un autre worker a déjà trouvé DROP → économiser CPU
-            worker->local_early_exits++;
-            stats_.worker_early_exits[worker_id].fetch_add(1, std::memory_order_relaxed);
-            
-            // LOG: Early exit
-            // std::cout << "[OptimizedParallelEngine] Worker " << worker_id 
-            //           << " early exit (DROP already found)" << std::endl;
-        } else {
-            // Convertir ParsedPacket → PacketData pour FastSequentialEngine
-            // TODO: Optimiser FastSequentialEngine pour accepter ParsedPacket directement
-            PacketData pkt_data;
+        // === PAS DE EARLY EXIT CHECK ===
+        // On évalue TOUTES les règles en parallèle sans vérifier drop_detected
+        // Coût : Plus de CPU mais plus rapide (pas de branch, pas de load atomic)
+        
+        // Convertir ParsedPacket → PacketData pour FastSequentialEngine
+        // TODO: Optimiser FastSequentialEngine pour accepter ParsedPacket directement
+        PacketData pkt_data;
             
             // Conversion ultra-rapide (pas d'allocation dynamique)
             struct in_addr addr;
@@ -346,35 +325,29 @@ void OptimizedParallelEngine::WorkerLoop(Worker* worker, size_t worker_id) {
             // Protocol est déjà uint8_t
             pkt_data.protocol = packet->protocol;
             
-            // Évaluer avec MES règles partitionnées (1/3 des règles totales)
-            FilterResult result = worker->engine->FilterPacket(pkt_data);
+        // Évaluer avec MES règles partitionnées (1/3 des règles totales)
+        FilterResult result = worker->engine->FilterPacket(pkt_data);
+        
+        worker->my_result = result.action;
+        worker->matched_rule_id = result.rule_id;
+        worker->matched_layer = result.layer;
+        
+        // Si DROP trouvé, update atomic verdict + signal
+        if (result.action == RuleAction::DROP) {
+            // Compare-And-Swap sur le verdict (premier gagne)
+            uint32_t expected = NF_ACCEPT;
+            bool success = packet->verdict.compare_exchange_strong(
+                expected, NF_DROP,
+                std::memory_order_release,
+                std::memory_order_relaxed
+            );
             
-            worker->my_result = result.action;
-            worker->matched_rule_id = result.rule_id;
-            worker->matched_layer = result.layer;
+            // Signaler (même si on n'a pas gagné le CAS)
+            packet->drop_detected.store(true, std::memory_order_release);
             
-            // Si DROP trouvé, update atomic verdict + signal early exit
-            if (result.action == RuleAction::DROP) {
-                // Compare-And-Swap sur le verdict (premier gagne)
-                uint32_t expected = NF_ACCEPT;
-                bool success = packet->verdict.compare_exchange_strong(
-                    expected, NF_DROP,
-                    std::memory_order_release,
-                    std::memory_order_relaxed
-                );
-                
-                // Signaler aux autres workers (même si on n'a pas gagné le CAS)
-                packet->drop_detected.store(true, std::memory_order_release);
-                
-                // Stats
-                worker->local_drops_found++;
-                stats_.worker_drops[worker_id].fetch_add(1, std::memory_order_relaxed);
-                
-                // LOG: DROP trouvé
-                // std::cout << "[OptimizedParallelEngine] Worker " << worker_id 
-                //           << " found DROP: " << result.rule_id 
-                //           << " (CAS " << (success ? "won" : "lost") << ")" << std::endl;
-            }
+            // Stats
+            worker->local_drops_found++;
+            stats_.worker_drops[worker_id].fetch_add(1, std::memory_order_relaxed);
         }
         
         // Stats
