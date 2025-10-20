@@ -1,4 +1,12 @@
 pour wrk :
+Running 50s test @ http://10.10.2.20
+  4 threads and 500 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    14.55ms   53.22ms 863.34ms   96.23%
+    Req/Sec    20.60k     2.88k   32.36k    94.19%
+  4092559 requests in 50.08s, 1.41GB read
+Requests/sec:  81727.56
+Transfer/sec:     28.76MB
 
 
 pour ping :
