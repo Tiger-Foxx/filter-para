@@ -5,7 +5,6 @@
 #include "parsed_packet.h"
 #include <atomic>
 #include <thread>
-#include <barrier>
 #include <vector>
 #include <memory>
 #include <array>
@@ -111,12 +110,12 @@ private:
     std::vector<std::unique_ptr<Worker>> workers_;
     const size_t num_workers_;
     
-    // === Synchronisation : futex sur séquence + barrier pour join ===
+    // === Synchronisation : futex sur séquence + atomic counter pour workers ===
     alignas(64) std::atomic<uint64_t> packet_sequence_{0};
     alignas(64) std::atomic<ParsedPacket*> current_packet_{nullptr};
     
-    // Barrier : main thread + workers (num_workers_ + 1)
-    std::barrier<> sync_barrier_;
+    // Atomic counter : combien de workers ont terminé
+    alignas(64) std::atomic<size_t> workers_done_{0};
     
     // Stats globales
     Stats stats_;
