@@ -5005,21 +5005,6 @@
       "type": "http_uri_regex",
       "values": ["(?i)or\\s+1=1", "(?i)and\\s+1=1", "(?i)'\\s+or\\s+'"],
       "action": "drop"
-    },
-    {
-      "id": "block_crlf_injection",
-      "layer": 7,
-      "type": "http_uri_regex",
-      "values": ["(?i)%0d%0a", "(?i)\\r\\n", "(?i)%0a"],
-      "action": "drop"
-    },
-    {
-      "id": "block_host_header_injection",
-      "layer": 7,
-      "type": "http_header_contains",
-      "field": "host",
-      "values": ["attacker.com", "evil.com", "malicious.net"],
-      "action": "drop"
     }
   ]
 }
