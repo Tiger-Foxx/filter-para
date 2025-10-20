@@ -1,0 +1,53 @@
+# 💬 MESSAGE WHATSAPP POUR LE PROFESSEUR
+
+---
+
+Bonjour Professeur,
+
+Je voulais vous expliquer l'approche que j'ai adoptée pour le mode parallèle de mon système de filtrage réseau Tiger-Fox.
+
+**🎯 Architecture :**
+J'ai implémenté un vrai parallélisme avec 3 workers qui évaluent les règles simultanément sur 3 CPU cores différents. Les 24 règles sont partitionnées équitablement : chaque worker évalue 8 règles.
+
+**🔄 Fonctionnement :**
+1. Quand un paquet arrive, le thread principal le parse et le publie
+2. Il réveille les 3 workers en parallèle via un syscall futex (mécanisme Linux ultra-rapide)
+3. Les 3 workers s'exécutent **EN MÊME TEMPS** sur leurs 8 règles respectives
+4. Dès qu'un worker trouve un DROP, il le signale atomiquement aux autres qui s'arrêtent immédiatement (early exit)
+5. Une barrière C++20 synchronise tout le monde avant de retourner le résultat
+
+**⚡ Optimisations clés :**
+- **Futex** au lieu de condition variables : 50ns vs 2000ns de latence
+- **CPU affinity** : chaque worker reste sur son core (pas de migration)
+- **Cache-aligned structures** : 64 bytes exactement pour éviter le false sharing
+- **Early exit atomique** : si DROP trouvé, les autres workers s'arrêtent
+- **Zero-copy parsing** : pas d'allocation mémoire
+
+**📊 Résultats attendus :**
+Mode séquentiel : ~1200ns par paquet (évalue 24 règles)
+Mode parallèle : ~700ns par paquet (3 workers × 8 règles en parallèle)
+**Speedup théorique : 1.7-2.0x**
+
+Je suis en train de valider ces chiffres avec wrk sur CloudLab.
+
+Est-ce que cette approche vous semble correcte pour démontrer les gains du parallélisme ?
+
+Merci !
+
+---
+
+**VERSION PLUS COURTE (si préféré) :**
+
+Bonjour Professeur,
+
+Pour le mode parallèle, j'ai implémenté 3 workers qui évaluent les 24 règles simultanément (8 règles chacun) sur 3 CPU cores différents avec CPU affinity.
+
+Mécanisme : Le thread principal publie le paquet et réveille les workers via futex Linux. Ils s'exécutent en parallèle. Si l'un trouve DROP, il le signale atomiquement et les autres s'arrêtent (early exit). Une barrière C++20 synchronise avant de retourner le verdict.
+
+Optimisations : futex (50ns), cache alignment (64 bytes), zero-copy parsing.
+
+Résultat attendu : ~700ns vs ~1200ns séquentiel = 1.7x speedup.
+
+Je valide actuellement avec wrk.
+
+Merci !

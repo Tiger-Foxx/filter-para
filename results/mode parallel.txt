@@ -1,0 +1,38 @@
+pour wrk :
+Running 50s test @ http://10.10.2.20
+  4 threads and 500 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   141.15ms  265.33ms   1.73s    88.79%
+    Req/Sec     7.91k     5.31k   35.58k    72.66%
+  1541215 requests in 50.08s, 542.29MB read
+  Socket errors: connect 0, read 0, write 0, timeout 318
+Requests/sec:  30773.63
+Transfer/sec:     10.83MB
+
+Running 50s test @ http://10.10.2.20
+  4 threads and 500 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   135.69ms  250.73ms   1.74s    88.82%
+    Req/Sec     7.49k     4.97k   30.84k    72.38%
+  1470325 requests in 50.10s, 517.35MB read
+  Socket errors: connect 0, read 0, write 0, timeout 109
+Requests/sec:  29348.47
+Transfer/sec:     10.33MB
+
+pour ping :
+PING 10.10.2.20 (10.10.2.20) 56(84) bytes of data.
+64 bytes from 10.10.2.20: icmp_seq=1 ttl=63 time=1.04 ms
+64 bytes from 10.10.2.20: icmp_seq=2 ttl=63 time=0.860 ms
+64 bytes from 10.10.2.20: icmp_seq=3 ttl=63 time=0.747 ms
+64 bytes from 10.10.2.20: icmp_seq=4 ttl=63 time=0.739 ms
+64 bytes from 10.10.2.20: icmp_seq=5 ttl=63 time=0.736 ms
+64 bytes from 10.10.2.20: icmp_seq=6 ttl=63 time=0.748 ms
+64 bytes from 10.10.2.20: icmp_seq=7 ttl=63 time=0.740 ms
+64 bytes from 10.10.2.20: icmp_seq=8 ttl=63 time=0.750 ms
+64 bytes from 10.10.2.20: icmp_seq=9 ttl=63 time=0.752 ms
+64 bytes from 10.10.2.20: icmp_seq=10 ttl=63 time=0.746 ms
+64 bytes from 10.10.2.20: icmp_seq=11 ttl=63 time=0.743 ms
+64 bytes from 10.10.2.20: icmp_seq=12 ttl=63 time=0.752 ms
+64 bytes from 10.10.2.20: icmp_seq=13 ttl=63 time=0.740 ms
+64 bytes from 10.10.2.20: icmp_seq=14 ttl=63 time=0.736 ms
+
