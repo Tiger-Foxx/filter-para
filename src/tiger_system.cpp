@@ -217,6 +217,10 @@ void TigerSystem::SignalHandler(int signal) {
     if (instance_) {
         std::cout << "\n\n⚠️  Signal " << signal << " received, shutting down..." << std::endl;
         instance_->running_.store(false, std::memory_order_release);
+        // Fermeture immédiate du PacketHandler pour débloquer recv()
+        if (instance_->packet_handler_) {
+            instance_->packet_handler_->Stop();
+        }
     }
 }
 
