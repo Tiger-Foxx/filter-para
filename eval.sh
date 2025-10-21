@@ -2,7 +2,7 @@
 
 MODE="$1"
 WORKERS="$2"
-RULES="rules/example_rules_backup2.json"
+RULES="/users/The_Fox/filter-para/rules/example_rules_backup2.json"
 QUEUE_NUM=0
 DURATION=90
 
