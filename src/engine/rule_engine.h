@@ -130,6 +130,8 @@ struct PacketData {
 // ============================================================
 class RuleEngine {
 public:
+    // Arrêt polymorphe des moteurs
+    virtual void Shutdown() {}
     explicit RuleEngine(const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules);
     virtual ~RuleEngine() = default;
 
