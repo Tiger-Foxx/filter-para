@@ -34,6 +34,8 @@
  */
 class OptimizedParallelEngine : public RuleEngine {
 public:
+    // Arrêt explicite des threads workers
+    void Shutdown();
     /**
      * Constructeur
      * 

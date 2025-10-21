@@ -196,6 +196,7 @@ void TigerSystem::Shutdown() {
     
     // Shutdown engine
     if (engine_) {
+        engine_->Shutdown();
         engine_.reset();
     }
     

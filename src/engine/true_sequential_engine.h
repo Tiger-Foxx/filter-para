@@ -17,6 +17,7 @@
  */
 class TrueSequentialEngine : public RuleEngine {
 public:
+    void Shutdown() {} // Rien à faire, pas de thread
     /**
      * Constructeur
      * 

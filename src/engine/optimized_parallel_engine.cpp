@@ -116,7 +116,38 @@ OptimizedParallelEngine::OptimizedParallelEngine(
 // DESTRUCTEUR
 // ============================================================================
 
+void OptimizedParallelEngine::Shutdown() {
+    std::cout << "[OptimizedParallelEngine] Shutdown() called..." << std::endl;
+    // Signaler arrêt à tous les workers
+    for (auto& worker : workers_) {
+        worker->running.store(false, std::memory_order_release);
+    }
+    // Bump sequence et wake pour débloquer les workers en attente
+    packet_sequence_.fetch_add(1, std::memory_order_release);
+    futex_wake(&packet_sequence_, static_cast<int>(num_workers_));
+    // Attendre que tous les threads se terminent
+    for (auto& worker : workers_) {
+        if (worker->thread.joinable()) {
+            worker->thread.join();
+        }
+    }
+    std::cout << "[OptimizedParallelEngine] All workers stopped" << std::endl;
+    // Afficher stats finales
+    std::cout << "[OptimizedParallelEngine] Final stats:" << std::endl;
+    std::cout << "  Total packets: " << stats_.packets_processed.load() << std::endl;
+    std::cout << "  Dropped: " << stats_.packets_dropped.load() << std::endl;
+    std::cout << "  Early exits: " << stats_.early_exits.load() << std::endl;
+    std::cout << "  Futex wakes: " << stats_.futex_wakes.load() << std::endl;
+    for (size_t i = 0; i < num_workers_; ++i) {
+        std::cout << "  Worker " << i << " - Packets: " 
+                  << stats_.worker_packets[i].load()
+                  << " | Drops: " << stats_.worker_drops[i].load()
+                  << " | Early exits: " << stats_.worker_early_exits[i].load() << std::endl;
+    }
+}
+
 OptimizedParallelEngine::~OptimizedParallelEngine() {
+    Shutdown();
     std::cout << "[OptimizedParallelEngine] Shutting down..." << std::endl;
     
     // Signaler arrêt à tous les workers

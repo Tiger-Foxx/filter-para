@@ -17,6 +17,7 @@
 
 class SuccessiveEngine : public RuleEngine {
 public:
+    void Shutdown() {} // Rien à faire, pas de thread
     // Constructeur: partitionne les règles entre 3 workers
     explicit SuccessiveEngine(const std::unordered_map<RuleLayer, std::vector<std::unique_ptr<Rule>>>& rules,
                               size_t num_workers = 3);
