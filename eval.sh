@@ -8,10 +8,10 @@ DURATION=90
 
 if [ "$MODE" == "parallel" ]; then
     FOLDER="execution_mode_parallel_${WORKERS}_workers"
-    CMD="sudo ./build/tiger-fox --mode parallel --rules $RULES --workers $WORKERS --queue-num $QUEUE_NUM"
+    CMD="sudo build/tiger-fox --mode parallel --rules $RULES --workers $WORKERS --queue-num $QUEUE_NUM"
 else
     FOLDER="execution_mode_sequential"
-    CMD="sudo ./build/tiger-fox --mode sequential --rules $RULES --queue-num $QUEUE_NUM"
+    CMD="sudo build/tiger-fox --mode sequential --rules $RULES --queue-num $QUEUE_NUM"
 fi
 
 mkdir -p "$FOLDER"
