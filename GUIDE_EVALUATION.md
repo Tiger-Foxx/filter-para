@@ -8,12 +8,14 @@
 sudo apt-get update
 sudo apt-get install -y sysstat
 
-# Outil de mesure énergétique (RECOMMANDÉ)
+# Outils de mesure énergétique (RECOMMANDÉS - LES DEUX)
 sudo apt-get install -y linux-tools-common linux-tools-generic linux-tools-$(uname -r)
+sudo apt-get install -y powerstat
 
 # Vérification
 mpstat -V
-turbostat --version  # Doit fonctionner avec sudo
+sudo turbostat --version  # Mesure CPU détaillée (Package, Cores, RAM)
+powerstat -h              # Mesure machine complète
 ```
 
 ### Sur le nœud INJECTEUR :
@@ -91,14 +93,17 @@ chmod +x eval_inj.sh
 ```
 filter_results_YYYYMMDD_HHMMSS/
 ├── test_01_sequential/
-│   ├── cpu_all.csv                 # CPU global et par cœur
-│   ├── cpu_app.csv                 # CPU de Tiger-Fox
-│   ├── cpu_percent_intervals.csv   # CPU à intervalles (1s)
-│   ├── energy_watts.csv            # Package;Core;RAM en Watts
-│   ├── energy_summary.csv          # Consommation moyenne
-│   ├── energy_turbostat.log        # Log brut turbostat
-│   ├── tiger_fox_output.log        # Logs de Tiger-Fox
-│   └── test_metadata.txt           # Métadonnées du test
+│   ├── cpu_all.csv                      # CPU global et par cœur
+│   ├── cpu_app.csv                      # CPU de Tiger-Fox
+│   ├── cpu_percent_intervals.csv        # CPU à intervalles (1s)
+│   ├── energy_cpu_watts.csv             # CPU: Package;Core;RAM en Watts
+│   ├── energy_cpu_summary.csv           # Consommation CPU moyenne
+│   ├── energy_cpu_turbostat.log         # Log brut turbostat (CPU)
+│   ├── energy_machine_watts.csv         # MACHINE: Consommation totale en Watts
+│   ├── energy_machine_summary.csv       # Consommation MACHINE moyenne
+│   ├── energy_machine_powerstat.log     # Log brut powerstat (MACHINE)
+│   ├── tiger_fox_output.log             # Logs de Tiger-Fox
+│   └── test_metadata.txt                # Métadonnées du test
 ├── test_02_parallel_02_workers/
 ├── test_03_parallel_03_workers/
 ├── ...

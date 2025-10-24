@@ -99,12 +99,16 @@ run_test() {
     echo "[$(date +%H:%M:%S)] ⏳ Attente du démarrage du filtreur (${STARTUP_MARGIN}s)..."
     sleep $STARTUP_MARGIN
     
-    # Test de connectivité
+    # Test de connectivité avec timeout plus long
     echo "[$(date +%H:%M:%S)] 🔍 Vérification de la connectivité..."
-    if ! ping -c 2 $SERVER_IP &> /dev/null; then
-        echo "❌ ERREUR: Le serveur $SERVER_IP n'est pas accessible!"
-        echo "   Le filtreur est-il bien démarré?"
-        return 1
+    if ! ping -c 2 -W 5 $SERVER_IP &> /dev/null; then
+        echo "⚠️  WARNING: Première vérification échouée, nouvelle tentative..."
+        sleep 2
+        if ! ping -c 3 -W 5 $SERVER_IP &> /dev/null; then
+            echo "❌ ERREUR: Le serveur $SERVER_IP n'est pas accessible!"
+            echo "   Le filtreur est-il bien démarré?"
+            return 1
+        fi
     fi
     echo "[$(date +%H:%M:%S)] ✅ Serveur accessible"
     

@@ -125,8 +125,8 @@ run_test() {
     pidstat -p $APP_PID 1 $TEST_DURATION | awk 'BEGIN{FS=" ";OFS=";"} /^[0-9]+:[0-9]+:[0-9]+/ && !/Linux/ && !/Average/ {print $1,$4,$5,$6,$7,$8}' > "$FOLDER/cpu_app.csv" &
     PIDSTAT_PID=$!
     
-    # Moniteur CPU à intervalles (pour analyse temporelle)
-    top -b -d 1 -n $TEST_DURATION -p $APP_PID | grep --line-buffered "tiger-fox" | awk '{print $9}' > "$FOLDER/cpu_percent_intervals.csv" &
+    # Moniteur CPU à intervalles (pour analyse temporelle) - COMME AVANT
+    top -b -d 1 -n $TEST_DURATION | grep --line-buffered "Cpu(s)" | awk '{print $2}' > "$FOLDER/cpu_log_interval.csv" &
     TOP_PID=$!
     
     # Moniteur énergétique CPU avec turbostat (si disponible)
@@ -134,6 +134,8 @@ run_test() {
         echo "[$(date +%H:%M:%S)] ⚡ Démarrage de la mesure énergétique CPU (turbostat)..."
         sudo turbostat --quiet --show PkgWatt,CorWatt,RAMWatt --interval 1 sleep $TEST_DURATION > "$FOLDER/energy_cpu_turbostat.log" 2>&1 &
         TURBOSTAT_PID=$!
+    else
+        TURBOSTAT_PID=""
     fi
     
     # Moniteur énergétique MACHINE COMPLÈTE avec powerstat (si disponible)
@@ -142,6 +144,8 @@ run_test() {
         # powerstat échantillonne toutes les secondes pendant TEST_DURATION secondes
         sudo powerstat -R -d 0 1 $TEST_DURATION > "$FOLDER/energy_machine_powerstat.log" 2>&1 &
         POWERSTAT_PID=$!
+    else
+        POWERSTAT_PID=""
     fi
     
     echo "[$(date +%H:%M:%S)] ⏳ Collecte des métriques en cours..."
@@ -165,40 +169,71 @@ run_test() {
     wait $MPSTAT_PID 2>/dev/null || true
     wait $PIDSTAT_PID 2>/dev/null || true
     wait $TOP_PID 2>/dev/null || true
-    [ "$USE_TURBOSTAT" == "true" ] && wait $TURBOSTAT_PID 2>/dev/null || true
-    [ "$USE_POWERSTAT" == "true" ] && wait $POWERSTAT_PID 2>/dev/null || true
+    [ -n "$TURBOSTAT_PID" ] && wait $TURBOSTAT_PID 2>/dev/null || true
+    [ -n "$POWERSTAT_PID" ] && wait $POWERSTAT_PID 2>/dev/null || true
     
     # Formatage des données énergétiques CPU (turbostat)
     if [ "$USE_TURBOSTAT" == "true" ] && [ -f "$FOLDER/energy_cpu_turbostat.log" ]; then
         echo "[$(date +%H:%M:%S)] 📊 Formatage des données énergétiques CPU..."
-        awk '/^[0-9]/ {print $1";"$2";"$3}' "$FOLDER/energy_cpu_turbostat.log" > "$FOLDER/energy_cpu_watts.csv"
         
-        # Calcul de la consommation CPU moyenne
-        AVG_PKG=$(awk -F';' 'NR>1 && $1!="" {sum+=$1; count++} END {if(count>0) printf "%.2f", sum/count; else print "N/A"}' "$FOLDER/energy_cpu_watts.csv")
-        AVG_CORE=$(awk -F';' 'NR>1 && $2!="" {sum+=$2; count++} END {if(count>0) printf "%.2f", sum/count; else print "N/A"}' "$FOLDER/energy_cpu_watts.csv")
-        AVG_RAM=$(awk -F';' 'NR>1 && $3!="" {sum+=$3; count++} END {if(count>0) printf "%.2f", sum/count; else print "N/A"}' "$FOLDER/energy_cpu_watts.csv")
+        # Parser turbostat : trouver les colonnes dynamiquement
+        awk '
+        BEGIN { pkg_col=0; cor_col=0; ram_col=0; }
+        NR==1 {
+            for(i=1; i<=NF; i++) {
+                if($i == "PkgWatt") pkg_col=i;
+                if($i == "CorWatt") cor_col=i;
+                if($i == "RAMWatt") ram_col=i;
+            }
+            next;
+        }
+        pkg_col && /^[0-9]/ {
+            pkg = (pkg_col && pkg_col<=NF) ? $pkg_col : "0";
+            cor = (cor_col && cor_col<=NF) ? $cor_col : "0";
+            ram = (ram_col && ram_col<=NF) ? $ram_col : "0";
+            print pkg";"cor";"ram;
+        }
+        ' "$FOLDER/energy_cpu_turbostat.log" > "$FOLDER/energy_cpu_watts.csv"
+        
+        # Calcul des moyennes
+        AVG_PKG=$(awk -F';' '$1+0>0 {sum+=$1; count++} END {if(count>0) printf "%.2f", sum/count; else print "N/A"}' "$FOLDER/energy_cpu_watts.csv")
+        AVG_CORE=$(awk -F';' '$2+0>0 {sum+=$2; count++} END {if(count>0) printf "%.2f", sum/count; else print "N/A"}' "$FOLDER/energy_cpu_watts.csv")
+        AVG_RAM=$(awk -F';' '$3+0>0 {sum+=$3; count++} END {if(count>0) printf "%.2f", sum/count; else print "N/A"}' "$FOLDER/energy_cpu_watts.csv")
         
         echo "Package_Watt;Core_Watt;RAM_Watt" > "$FOLDER/energy_cpu_summary.csv"
         echo "$AVG_PKG;$AVG_CORE;$AVG_RAM" >> "$FOLDER/energy_cpu_summary.csv"
+    else
+        AVG_PKG="N/A"
+        AVG_CORE="N/A"
+        AVG_RAM="N/A"
     fi
     
     # Formatage des données énergétiques MACHINE (powerstat)
     if [ "$USE_POWERSTAT" == "true" ] && [ -f "$FOLDER/energy_machine_powerstat.log" ]; then
         echo "[$(date +%H:%M:%S)] 📊 Formatage des données énergétiques MACHINE..."
         
-        # Extraction de la consommation moyenne de la machine
-        AVG_MACHINE=$(grep "Average" "$FOLDER/energy_machine_powerstat.log" | awk '{print $2}')
+        # Parser powerstat - format attendu : lignes avec "Watts" ou valeurs numériques
+        grep -i "watts" "$FOLDER/energy_machine_powerstat.log" | grep -oE "[0-9]+\.[0-9]+" > "$FOLDER/energy_machine_watts.csv"
         
-        # Extraction des échantillons individuels (toutes les lignes avec des Watts)
-        grep -E "^[0-9]+\.[0-9]+" "$FOLDER/energy_machine_powerstat.log" | awk '{print $1}' > "$FOLDER/energy_machine_watts.csv"
+        # Si vide, essayer autre pattern
+        if [ ! -s "$FOLDER/energy_machine_watts.csv" ]; then
+            awk '/^[[:space:]]*[0-9]+\.[0-9]+/ {print $1}' "$FOLDER/energy_machine_powerstat.log" > "$FOLDER/energy_machine_watts.csv"
+        fi
         
-        # Si pas de moyenne trouvée, calculer manuellement
-        if [ -z "$AVG_MACHINE" ] || [ "$AVG_MACHINE" == "" ]; then
+        # Chercher la moyenne dans le log
+        AVG_MACHINE=$(grep -iE "average|summary" "$FOLDER/energy_machine_powerstat.log" | grep -oE "[0-9]+\.[0-9]+" | head -1)
+        
+        # Sinon calculer depuis les échantillons
+        if [ -z "$AVG_MACHINE" ] && [ -s "$FOLDER/energy_machine_watts.csv" ]; then
             AVG_MACHINE=$(awk '{sum+=$1; count++} END {if(count>0) printf "%.2f", sum/count; else print "N/A"}' "$FOLDER/energy_machine_watts.csv")
+        elif [ -z "$AVG_MACHINE" ]; then
+            AVG_MACHINE="N/A"
         fi
         
         echo "Machine_Total_Watt" > "$FOLDER/energy_machine_summary.csv"
         echo "$AVG_MACHINE" >> "$FOLDER/energy_machine_summary.csv"
+    else
+        AVG_MACHINE="N/A"
     fi
     
     # Création d'un fichier de métadonnées
@@ -216,22 +251,22 @@ Queue Number: $QUEUE_NUM
 Bonus Test: ${IS_BONUS:-false}
 EOF
     
-    # Listing des fichiers générés
+    # Listing des fichiers générés (exclure les fichiers vides)
     echo ""
     echo "✅ Test terminé avec succès!"
     echo "   Fichiers générés dans $FOLDER:"
-    ls -lh "$FOLDER" | tail -n +2 | awk '{printf "     - %-40s (%s)\n", $9, $5}'
+    ls -lh "$FOLDER" | tail -n +2 | awk '$5!="0" {printf "     - %-40s (%s)\n", $9, $5}'
     
     # Affichage des résumés énergétiques
     echo ""
-    if [ "$USE_TURBOSTAT" == "true" ]; then
+    if [ "$USE_TURBOSTAT" == "true" ] && [ "$AVG_PKG" != "N/A" ]; then
         echo "   ⚡ Consommation énergétique CPU moyenne:"
         echo "      • Package: $AVG_PKG W"
         echo "      • Cores:   $AVG_CORE W"
         echo "      • RAM:     $AVG_RAM W"
     fi
     
-    if [ "$USE_POWERSTAT" == "true" ]; then
+    if [ "$USE_POWERSTAT" == "true" ] && [ "$AVG_MACHINE" != "N/A" ]; then
         echo "   🔋 Consommation énergétique MACHINE moyenne:"
         echo "      • Total:   $AVG_MACHINE W"
     fi
