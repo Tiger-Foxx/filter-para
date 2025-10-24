@@ -7,7 +7,7 @@
 # Mesure : CPU, Énergie (turbostat)
 ################################################################################
 
-set -e  # Arrêt en cas d'erreur
+# Pas de set -e ici car on veut continuer même si un outil énergétique échoue
 
 # Configuration
 RULES="/users/The_Fox/filter-para/rules/example_rules_backup2.json"
@@ -275,6 +275,8 @@ EOF
     echo ""
     echo "⏸️  Pause de 5s avant le prochain test (synchronisation avec l'injecteur)..."
     sleep 5
+    
+    return 0  # Succès du test
 }
 
 # ============================================================================

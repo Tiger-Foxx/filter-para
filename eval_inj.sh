@@ -7,7 +7,7 @@
 # Mesure : Ping latency, Wrk throughput & latency
 ################################################################################
 
-set -e  # Arrêt en cas d'erreur
+# Pas de set -e ici pour continuer même si un test échoue
 
 # Configuration
 SERVER_IP="10.10.2.20"
