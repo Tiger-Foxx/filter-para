@@ -197,7 +197,10 @@ EOF
     echo "      PING  → Min: ${PING_MIN}ms | Avg: ${PING_AVG}ms | Max: ${PING_MAX}ms | Loss: ${PING_LOSS}"
     echo "      WRK   → Req/s: ${WRK_REQ_SEC} | Latency: ${WRK_LAT_AVG} (avg) / ${WRK_LAT_MAX} (max)"
     
-    sleep 2  # Pause entre les tests pour laisser le filtreur se préparer
+    # Pause PLUS LONGUE pour laisser le filtreur finir proprement et redémarrer
+    echo ""
+    echo "⏸️  Pause de 7s (le filtreur s'arrête et redémarre)..."
+    sleep 7
 }
 
 # ============================================================================

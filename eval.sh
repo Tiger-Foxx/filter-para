@@ -271,7 +271,10 @@ EOF
         echo "      • Total:   $AVG_MACHINE W"
     fi
     
-    sleep 2  # Pause entre les tests
+    # IMPORTANTE : Pause longue entre les tests pour laisser l'injecteur se synchroniser
+    echo ""
+    echo "⏸️  Pause de 5s avant le prochain test (synchronisation avec l'injecteur)..."
+    sleep 5
 }
 
 # ============================================================================
