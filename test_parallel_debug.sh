@@ -13,8 +13,8 @@ fi
 
 echo "📋 Configuration iptables..."
 iptables -F FORWARD
-iptables -A FORWARD -i eno2 -o enp5s0f0 -j ACCEPT
-iptables -A FORWARD -i enp5s0f0 -o eno2 -j NFQUEUE --queue-num 0
+iptables -A FORWARD -i enp4s0f0 -o enp4s0f1 -j ACCEPT
+iptables -A FORWARD -i enp4s0f1 -o enp4s0f0 -j NFQUEUE --queue-num 0
 echo "✅ iptables configuré"
 echo ""
 

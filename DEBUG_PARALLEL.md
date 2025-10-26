@@ -36,8 +36,8 @@ sudo ./test_parallel_debug.sh
 
 # Méthode 2: Manuelle
 sudo iptables -F FORWARD
-sudo iptables -A FORWARD -i eno2 -o enp5s0f0 -j ACCEPT
-sudo iptables -A FORWARD -i enp5s0f0 -o eno2 -j NFQUEUE --queue-num 0
+sudo iptables -A FORWARD -i enp4s0f0 -o enp4s0f1 -j ACCEPT
+sudo iptables -A FORWARD -i enp4s0f1 -o enp4s0f0 -j NFQUEUE --queue-num 0
 sudo ./build/tiger-fox --mode parallel --workers 3 --queue-num 0 --verbose
 ```
 
@@ -71,7 +71,7 @@ ping 10.10.2.20
 ```bash
 # Sur filter
 sudo iptables -L -n -v  # Vérifier que des paquets passent
-sudo tcpdump -i enp5s0f0 icmp  # Voir si les pings arrivent
+sudo tcpdump -i enp4s0f1 icmp  # Voir si les pings arrivent
 ```
 
 ### Scénario 2: Les logs s'arrêtent à "Waiting for workers"

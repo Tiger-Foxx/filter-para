@@ -111,8 +111,8 @@ struct FilterResult {
 ```
 
 **Filter node** :
-- Interface eno2 : vers injector
-- Interface enp5s0f0 : vers receiver
+- Interface enp4s0f0 : vers injector
+- Interface enp4s0f1 : vers receiver
 - IP forwarding enabled
 - iptables NFQUEUE rule
 

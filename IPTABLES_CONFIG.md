@@ -7,8 +7,8 @@
 
 Actuellement, ta règle iptables filtre **TOUS** les paquets FORWARD :
 ```bash
-sudo iptables -A FORWARD -i enp5s0f0 -o eno2 -j NFQUEUE --queue-num 0
-sudo iptables -A FORWARD -i eno2 -o enp5s0f0 -j ACCEPT
+sudo iptables -A FORWARD -i enp4s0f1 -o enp4s0f0 -j NFQUEUE --queue-num 0
+sudo iptables -A FORWARD -i enp4s0f0 -o enp4s0f1 -j ACCEPT
 ```
 
 **Problème** : Les réponses HTTP du serveur (10.10.2.20 → injector) passent aussi par NFQUEUE !
@@ -23,10 +23,10 @@ sudo iptables -A FORWARD -i eno2 -o enp5s0f0 -j ACCEPT
 sudo iptables -F FORWARD
 
 # Filtrer uniquement les paquets entrants de l'injector vers le serveur
-sudo iptables -A FORWARD -i enp5s0f0 -o eno2 -m state --state NEW,ESTABLISHED -j NFQUEUE --queue-num 0
+sudo iptables -A FORWARD -i enp4s0f1 -o enp4s0f0 -m state --state NEW,ESTABLISHED -j NFQUEUE --queue-num 0
 
 # Accepter directement les réponses du serveur (pas de filtrage)
-sudo iptables -A FORWARD -i eno2 -o enp5s0f0 -m state --state ESTABLISHED,RELATED -j ACCEPT
+sudo iptables -A FORWARD -i enp4s0f0 -o enp4s0f1 -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 # Log pour débug
 sudo iptables -A FORWARD -j LOG --log-prefix "FORWARD_DROP: "
@@ -38,7 +38,7 @@ sudo iptables -A FORWARD -j LOG --log-prefix "FORWARD_DROP: "
 sudo iptables -F FORWARD
 
 # Filtrer uniquement les SYN (début de connexion TCP)
-sudo iptables -A FORWARD -i enp5s0f0 -o eno2 -p tcp --syn -j NFQUEUE --queue-num 0
+sudo iptables -A FORWARD -i enp4s0f1 -o enp4s0f0 -p tcp --syn -j NFQUEUE --queue-num 0
 
 # Accepter tout le reste directement
 sudo iptables -A FORWARD -j ACCEPT
@@ -50,10 +50,10 @@ sudo iptables -A FORWARD -j ACCEPT
 sudo iptables -F FORWARD
 
 # Filtrer TOUS les paquets injector → serveur
-sudo iptables -A FORWARD -i enp5s0f0 -o eno2 -j NFQUEUE --queue-num 0
+sudo iptables -A FORWARD -i enp4s0f1 -o enp4s0f0 -j NFQUEUE --queue-num 0
 
 # Accepter TOUS les paquets serveur → injector (SANS filtrage)
-sudo iptables -A FORWARD -i eno2 -o enp5s0f0 -j ACCEPT
+sudo iptables -A FORWARD -i enp4s0f0 -o enp4s0f1 -j ACCEPT
 ```
 
 ---
@@ -62,11 +62,11 @@ sudo iptables -A FORWARD -i eno2 -o enp5s0f0 -j ACCEPT
 
 Ta config actuelle est déjà correcte !
 ```bash
-sudo iptables -A FORWARD -i enp5s0f0 -o eno2 -j NFQUEUE --queue-num 0
-sudo iptables -A FORWARD -i eno2 -o enp5s0f0 -j ACCEPT
+sudo iptables -A FORWARD -i enp4s0f1 -o enp4s0f0 -j NFQUEUE --queue-num 0
+sudo iptables -A FORWARD -i enp4s0f0 -o enp4s0f1 -j ACCEPT
 ```
 
-**C'est bon !** Les réponses du serveur (eno2 → enp5s0f0) ne passent PAS par NFQUEUE.
+**C'est bon !** Les réponses du serveur (enp4s0f0 → enp4s0f1) ne passent PAS par NFQUEUE.
 
 ---
 
@@ -80,7 +80,7 @@ sudo iptables -L FORWARD -n -v --line-numbers
 watch -n 1 'sudo iptables -L FORWARD -n -v'
 
 # Voir les paquets qui passent dans NFQUEUE
-sudo tcpdump -i enp5s0f0 -nn
+sudo tcpdump -i enp4s0f1 -nn
 ```
 
 ---

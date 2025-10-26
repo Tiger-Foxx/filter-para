@@ -4,12 +4,12 @@
 
 **NON !** Ta config iptables est correcte :
 ```bash
-sudo iptables -A FORWARD -i enp5s0f0 -o eno2 -j NFQUEUE --queue-num 0  # Filtre ALLER
-sudo iptables -A FORWARD -i eno2 -o enp5s0f0 -j ACCEPT                 # Accepte RETOUR SANS filtrage
+sudo iptables -A FORWARD -i enp4s0f1 -o enp4s0f0 -j NFQUEUE --queue-num 0  # Filtre ALLER
+sudo iptables -A FORWARD -i enp4s0f0 -o enp4s0f1 -j ACCEPT                 # Accepte RETOUR SANS filtrage
 ```
 
-✅ **Verdict** : Seuls les paquets **injector → serveur** (enp5s0f0 → eno2) passent par NFQUEUE.  
-✅ Les réponses **serveur → injector** (eno2 → enp5s0f0) sont acceptées DIRECTEMENT.
+✅ **Verdict** : Seuls les paquets **injector → serveur** (enp4s0f1 → enp4s0f0) passent par NFQUEUE.  
+✅ Les réponses **serveur → injector** (enp4s0f0 → enp4s0f1) sont acceptées DIRECTEMENT.
 
 ---
 
