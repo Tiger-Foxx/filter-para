@@ -242,8 +242,14 @@ EOF
 
 # === LANCEMENT DES TESTS ===
 echo "PHASE 1: TESTS STANDARDS"
+# Lancer d'abord les tests parallèles du plus grand nombre de workers au plus petit,
+# puis le test séquentiel. Ceci permet d'évaluer l'impact de l'ordre d'exécution.
+for w in 16 8 7 6 5 4 3 2; do
+    run_test "parallel" "$w" "false"
+done
+
+# Ensuite le test séquentiel
 run_test "sequential" "" "false"
-for w in 2 3 4 5 6 7 8 16; do run_test "parallel" "$w" "false"; done
 
 echo "PHASE 2: TESTS BONUS"
 echo "IMPORTANT: Injecteur doit utiliser wrk -t8 -c1000"
