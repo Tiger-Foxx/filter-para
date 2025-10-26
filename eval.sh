@@ -286,15 +286,16 @@ EOF
 echo ""
 echo "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓"
 echo "┃  PHASE 1: TESTS STANDARDS (Charge normale)                         ┃"
+echo "┃  🔽 ORDRE INVERSÉ: 16 workers → 2 workers → Séquentiel            ┃"
 echo "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
 
-# Test séquentiel
-run_test "sequential" "" "false"
-
-# Tests parallèles avec différents nombres de workers
-for WORKERS in 2 3 4 5 6 7 8 16; do
+# Tests parallèles DANS L'ORDRE DÉCROISSANT (16 → 8 → 7 → 6 → 5 → 4 → 3 → 2)
+for WORKERS in 16 8 7 6 5 4 3 2; do
     run_test "parallel" "$WORKERS" "false"
 done
+
+# Test séquentiel EN DERNIER
+run_test "sequential" "" "false"
 
 # ============================================================================
 # TESTS BONUS (Charge doublée)
