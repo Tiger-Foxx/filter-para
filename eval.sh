@@ -78,7 +78,19 @@ run_test() {
             FOLDER="test_bonus_parallel_${WORKERS}_workers"
             TEST_NAME="PARALLEL ${WORKERS} WORKERS (BONUS - Charge doublée)"
         else
-            FOLDER=$(printf "test_%02d_parallel_%02d_workers" $((WORKERS + 1)) $WORKERS)
+            # Numérotation cohérente : seq=1, 2w=2, 3w=3, ..., 16w=9
+            case $WORKERS in
+                2)  TEST_NUM=02 ;;
+                3)  TEST_NUM=03 ;;
+                4)  TEST_NUM=04 ;;
+                5)  TEST_NUM=05 ;;
+                6)  TEST_NUM=06 ;;
+                7)  TEST_NUM=07 ;;
+                8)  TEST_NUM=08 ;;
+                16) TEST_NUM=09 ;;
+                *)  TEST_NUM=$(printf "%02d" $((WORKERS + 1))) ;;
+            esac
+            FOLDER=$(printf "test_%s_parallel_%02d_workers" "$TEST_NUM" "$WORKERS")
             TEST_NAME="PARALLEL ${WORKERS} WORKERS"
         fi
         CMD="sudo $TIGER_FOX --mode parallel --rules $RULES --workers $WORKERS --queue-num $QUEUE_NUM"
@@ -176,9 +188,9 @@ run_test() {
     if [ "$USE_TURBOSTAT" == "true" ] && [ -f "$FOLDER/energy_cpu_turbostat.log" ]; then
         echo "[$(date +%H:%M:%S)] 📊 Formatage des données énergétiques CPU..."
         
-        # Parser turbostat : trouver les colonnes dynamiquement
+        # Parser turbostat : trouver les colonnes dynamiquement et extraire toutes les valeurs
         awk '
-        BEGIN { pkg_col=0; cor_col=0; ram_col=0; }
+        BEGIN { pkg_col=0; cor_col=0; ram_col=0; print "PkgWatt;CorWatt;RAMWatt"; }
         NR==1 {
             for(i=1; i<=NF; i++) {
                 if($i == "PkgWatt") pkg_col=i;
@@ -196,9 +208,9 @@ run_test() {
         ' "$FOLDER/energy_cpu_turbostat.log" > "$FOLDER/energy_cpu_watts.csv"
         
         # Calcul des moyennes
-        AVG_PKG=$(awk -F';' '$1+0>0 {sum+=$1; count++} END {if(count>0) printf "%.2f", sum/count; else print "N/A"}' "$FOLDER/energy_cpu_watts.csv")
-        AVG_CORE=$(awk -F';' '$2+0>0 {sum+=$2; count++} END {if(count>0) printf "%.2f", sum/count; else print "N/A"}' "$FOLDER/energy_cpu_watts.csv")
-        AVG_RAM=$(awk -F';' '$3+0>0 {sum+=$3; count++} END {if(count>0) printf "%.2f", sum/count; else print "N/A"}' "$FOLDER/energy_cpu_watts.csv")
+        AVG_PKG=$(awk -F';' 'NR>1 && $1+0>0 {sum+=$1; count++} END {if(count>0) printf "%.2f", sum/count; else print "N/A"}' "$FOLDER/energy_cpu_watts.csv")
+        AVG_CORE=$(awk -F';' 'NR>1 && $2+0>0 {sum+=$2; count++} END {if(count>0) printf "%.2f", sum/count; else print "N/A"}' "$FOLDER/energy_cpu_watts.csv")
+        AVG_RAM=$(awk -F';' 'NR>1 && $3+0>0 {sum+=$3; count++} END {if(count>0) printf "%.2f", sum/count; else print "N/A"}' "$FOLDER/energy_cpu_watts.csv")
         
         echo "Package_Watt;Core_Watt;RAM_Watt" > "$FOLDER/energy_cpu_summary.csv"
         echo "$AVG_PKG;$AVG_CORE;$AVG_RAM" >> "$FOLDER/energy_cpu_summary.csv"
@@ -286,16 +298,16 @@ EOF
 echo ""
 echo "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓"
 echo "┃  PHASE 1: TESTS STANDARDS (Charge normale)                         ┃"
-echo "┃  🔽 ORDRE INVERSÉ: 16 workers → 2 workers → Séquentiel            ┃"
+echo "┃  � ORDRE CROISSANT: Séquentiel → 2 workers → 16 workers          ┃"
 echo "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
 
-# Tests parallèles DANS L'ORDRE DÉCROISSANT (16 → 8 → 7 → 6 → 5 → 4 → 3 → 2)
-for WORKERS in 16 8 7 6 5 4 3 2; do
+# Test séquentiel EN PREMIER
+run_test "sequential" "" "false"
+
+# Tests parallèles DANS L'ORDRE CROISSANT (2 → 3 → 4 → 5 → 6 → 7 → 8 → 16)
+for WORKERS in 2 3 4 5 6 7 8 16; do
     run_test "parallel" "$WORKERS" "false"
 done
-
-# Test séquentiel EN DERNIER
-run_test "sequential" "" "false"
 
 # ============================================================================
 # TESTS BONUS (Charge doublée)
