@@ -5,7 +5,36 @@
 # Teste automatiquement : sequential, parallel (2,3,4,5,6,7,8,16 workers)
 # + test bonus avec charge doublée (sequential et parallel 4 workers)
 # Mesure : CPU, Énergie (turbostat + powerstat)
+# Option --inverted pour inverser l'ordre des tests
 ################################################################################
+
+# Pas de set -e ici car on veut continuer même si un outil énergétique échoue
+
+# Ordre par défaut : descending (16 -> 2 -> sequential)
+ORDER="descending"
+
+# Parse les arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --inverted)
+            ORDER="ascending"
+            shift
+            ;;
+        --help|-h)
+            echo "Usage: $0 [--inverted]"
+            echo ""
+            echo "Options:"
+            echo "  --inverted    Ordre ascendant (sequential -> 2 -> ... -> 16)"
+            echo "  Par défaut : Ordre descendant (16 -> ... -> 2 -> sequential)"
+            exit 0
+            ;;
+        *)
+            echo "Option inconnue: $1"
+            echo "Utilisez --help pour voir les options"
+            exit 1
+            ;;
+    esac
+done
 
 # Configuration
 RULES="/users/The_Fox/filter-para/rules/example_rules_backup2.json"
@@ -52,7 +81,8 @@ cd "$RESULTS_DIR"
 echo ""
 echo "╔════════════════════════════════════════════════════════════════════════╗"
 echo "║  ÉVALUATION AUTOMATIQUE - CÔTÉ FILTREUR                                ║"
-echo "║  Résultats dans: $(pwd)"
+echo "║  Ordre des tests: $ORDER"
+echo "║  Résultats dans: $RESULTS_DIR"
 echo "╚════════════════════════════════════════════════════════════════════════╝"
 echo ""
 
@@ -86,132 +116,134 @@ run_test() {
     
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "Démarrage du test: $TEST_NAME"
+    echo "🚀 Démarrage du test: $TEST_NAME"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "   Dossier: $FOLDER"
-    echo "   Durée: ${TEST_DURATION}s"
+    echo "   Durée: ${TEST_DURATION}s (Ping: ${PING_DURATION}s + Wrk: ${WRK_DURATION}s + Marges: $((STARTUP_MARGIN + SHUTDOWN_MARGIN))s)"
     echo ""
     
-    # Nettoyage
+    # Nettoyage des processus précédents (au cas où)
     sudo pkill -9 tiger-fox 2>/dev/null || true
     sleep 1
     
-    # Démarrage moniteurs CPU
-    echo "[$(date +%H:%M:%S)] Démarrage des moniteurs CPU..."
+    # Démarrage des moniteurs CPU
+    echo "[$(date +%H:%M:%S)] 📊 Démarrage des moniteurs CPU..."
     mpstat -P ALL 1 $TEST_DURATION | awk 'BEGIN{FS=" ";OFS=";"} /^[0-9]+:[0-9]+:[0-9]+/ && !/Linux/ && !/^$/ {gsub(/^ +| +$/,"",$3); print $3,$4,$5,$6,$7,$8,$9,$10,$11,$12}' > "$FOLDER/cpu_all.csv" &
     MPSTAT_PID=$!
     
-    # Lancement Tiger-Fox
-    echo "[$(date +%H:%M:%S)] Lancement de Tiger-Fox..."
+    # Démarrage du programme Tiger-Fox
+    echo "[$(date +%H:%M:%S)] 🦊 Lancement de Tiger-Fox..."
     $CMD > "$FOLDER/tiger_fox_output.log" 2>&1 &
     APP_PID=$!
     
+    # Attente que le programme soit prêt
     sleep $STARTUP_MARGIN
     
+    # Vérification que le programme tourne toujours
     if ! ps -p $APP_PID > /dev/null; then
-        echo "ERREUR: Tiger-Fox s'est arrêté prématurément!"
+        echo "❌ ERREUR: Tiger-Fox s'est arrêté prématurément!"
+        echo "   Voir les logs dans: $FOLDER/tiger_fox_output.log"
         wait $MPSTAT_PID 2>/dev/null || true
         return 1
     fi
     
-    echo "[$(date +%H:%M:%S)] Tiger-Fox opérationnel (PID: $APP_PID)"
+    echo "[$(date +%H:%M:%S)] ✅ Tiger-Fox opérationnel (PID: $APP_PID)"
     
-    # Moniteurs CPU spécifiques
+    # Moniteur CPU du programme spécifique
     pidstat -p $APP_PID 1 $TEST_DURATION | awk 'BEGIN{FS=" ";OFS=";"} /^[0-9]+:[0-9]+:[0-9]+/ && !/Linux/ && !/Average/ {print $1,$4,$5,$6,$7,$8}' > "$FOLDER/cpu_app.csv" &
     PIDSTAT_PID=$!
     
+    # Moniteur CPU à intervalles (pour analyse temporelle)
     top -b -d 1 -n $TEST_DURATION | grep --line-buffered "Cpu(s)" | awk '{print $2}' > "$FOLDER/cpu_log_interval.csv" &
     TOP_PID=$!
     
     # Énergie CPU (turbostat)
     if [ "$USE_TURBOSTAT" == "true" ]; then
-        echo "[$(date +%H:%M:%S)] Mesure énergétique CPU (turbostat)..."
+        echo "[$(date +%H:%M:%S)] ⚡ Démarrage de la mesure énergétique CPU (turbostat)..."
         sudo turbostat --quiet --show PkgWatt,CorWatt,RAMWatt --interval 1 sleep $TEST_DURATION > "$FOLDER/energy_cpu_turbostat.log" 2>&1 &
         TURBOSTAT_PID=$!
     else
         TURBOSTAT_PID=""
     fi
     
-    # Énergie machine (powerstat) - FORME FIABLE
+    # Énergie machine (powerstat) - DÉSACTIVÉ car nécessite 480+ lectures (8 min)
+    # Pour réactiver, augmenter TEST_DURATION à 480s minimum
     if [ "$USE_POWERSTAT" == "true" ]; then
-        echo "[$(date +%H:%M:%S)] Mesure énergétique MACHINE (powerstat)..."
-        sudo powerstat -r -d 0 1 $TEST_DURATION > "$FOLDER/energy_machine_powerstat.log" 2>&1 &
-        POWERSTAT_PID=$!
+        echo "[$(date +%H:%M:%S)] 🔋 Mesure énergétique MACHINE (powerstat) - DÉSACTIVÉE"
+        echo "   (Nécessite 480+ lectures = 8 minutes minimum)"
+        # sudo powerstat -R -d 0 1 $TEST_DURATION > "$FOLDER/energy_machine_powerstat.log" 2>&1 &
+        # POWERSTAT_PID=$!
+        POWERSTAT_PID=""
     else
         POWERSTAT_PID=""
     fi
     
-    echo "[$(date +%H:%M:%S)] Collecte en cours... (injecteur doit lancer les tests)"
+    echo "[$(date +%H:%M:%S)] ⏳ Collecte des métriques en cours..."
+    echo "                      (L'injecteur doit maintenant lancer ses tests)"
     
+    # Attente de la fin du test
     sleep $TEST_DURATION
     
-    # Arrêt propre
-    echo "[$(date +%H:%M:%S)] Arrêt de Tiger-Fox..."
+    # Arrêt propre de Tiger-Fox
+    echo "[$(date +%H:%M:%S)] 🛑 Arrêt de Tiger-Fox..."
     sudo kill -SIGINT $APP_PID 2>/dev/null || true
     sleep $SHUTDOWN_MARGIN
+    
+    # Force l'arrêt si encore actif
     if ps -p $APP_PID > /dev/null 2>&1; then
+        echo "[$(date +%H:%M:%S)] ⚠️  Arrêt forcé nécessaire..."
         sudo kill -SIGKILL $APP_PID 2>/dev/null || true
     fi
     
-    # Attente moniteurs
+    # Attente de la fin des moniteurs
     wait $MPSTAT_PID 2>/dev/null || true
     wait $PIDSTAT_PID 2>/dev/null || true
     wait $TOP_PID 2>/dev/null || true
     [ -n "$TURBOSTAT_PID" ] && wait $TURBOSTAT_PID 2>/dev/null || true
     [ -n "$POWERSTAT_PID" ] && wait $POWERSTAT_PID 2>/dev/null || true
     
-    # === TURBOSTAT PARSING (4 packages) ===
+    # Formatage des données énergétiques CPU (turbostat)
     if [ "$USE_TURBOSTAT" == "true" ] && [ -f "$FOLDER/energy_cpu_turbostat.log" ]; then
+        echo "[$(date +%H:%M:%S)] 📊 Formatage des données énergétiques CPU..."
+        
+        # Parser turbostat : trouver les colonnes dynamiquement et sommer les 4 packages
         awk '
+        BEGIN { pkg_col=0; cor_col=0; ram_col=0; }
         NR==1 {
             for(i=1; i<=NF; i++) {
-                if($i == "PkgWatt") pkg_cols[pkg_count++] = i;
-                if($i == "CorWatt") cor_col = i;
-                if($i == "RAMWatt") ram_cols[ram_count++] = i;
+                if($i == "PkgWatt") pkg_col=i;
+                if($i == "CorWatt") cor_col=i;
+                if($i == "RAMWatt") ram_col=i;
             }
             next;
         }
-        /^[0-9]/ {
-            pkg_sum = 0; ram_sum = 0; cor = 0;
-            for(i=0; i<pkg_count; i++) {
-                col = pkg_cols[i];
-                if(col <= NF) pkg_sum += $(col);
-            }
-            for(i=0; i<ram_count; i++) {
-                col = ram_cols[i];
-                if(col <= NF) ram_sum += $(col);
-            }
-            if(cor_col <= NF) cor = $(cor_col);
-            print pkg_sum ";" cor ";" ram_sum;
+        pkg_col && /^[0-9]/ {
+            pkg = (pkg_col && pkg_col<=NF) ? $pkg_col : "0";
+            cor = (cor_col && cor_col<=NF) ? $cor_col : "0";
+            ram = (ram_col && ram_col<=NF) ? $ram_col : "0";
+            print pkg";"cor";"ram;
         }
         ' "$FOLDER/energy_cpu_turbostat.log" > "$FOLDER/energy_cpu_watts.csv"
         
-        AVG_PKG=$(awk -F';' '{sum+=$1; c++} END {printf "%.2f", sum/c}' "$FOLDER/energy_cpu_watts.csv")
-        AVG_CORE=$(awk -F';' '{sum+=$2; c++} END {printf "%.2f", sum/c}' "$FOLDER/energy_cpu_watts.csv")
-        AVG_RAM=$(awk -F';' '{sum+=$3; c++} END {printf "%.2f", sum/c}' "$FOLDER/energy_cpu_watts.csv")
+        # Calcul des moyennes
+        AVG_PKG=$(awk -F';' '$1+0>0 {sum+=$1; count++} END {if(count>0) printf "%.2f", sum/count; else print "N/A"}' "$FOLDER/energy_cpu_watts.csv")
+        AVG_CORE=$(awk -F';' '$2+0>0 {sum+=$2; count++} END {if(count>0) printf "%.2f", sum/count; else print "N/A"}' "$FOLDER/energy_cpu_watts.csv")
+        AVG_RAM=$(awk -F';' '$3+0>0 {sum+=$3; count++} END {if(count>0) printf "%.2f", sum/count; else print "N/A"}' "$FOLDER/energy_cpu_watts.csv")
         
         echo "Package_Watt;Core_Watt;RAM_Watt" > "$FOLDER/energy_cpu_summary.csv"
         echo "$AVG_PKG;$AVG_CORE;$AVG_RAM" >> "$FOLDER/energy_cpu_summary.csv"
     else
-        AVG_PKG="N/A"; AVG_CORE="N/A"; AVG_RAM="N/A"
+        AVG_PKG="N/A"
+        AVG_CORE="N/A"
+        AVG_RAM="N/A"
     fi
     
-    # === POWERSTAT PARSING (FIABLE) ===
-    if [ "$USE_POWERSTAT" == "true" ] && [ -f "$FOLDER/energy_machine_powerstat.log" ]; then
-        # Extraire toutes les valeurs Watts
-        awk '/[0-9]+\.[0-9]+$/ && $NF ~ /^[0-9]+\.[0-9]+$/ {print $NF}' "$FOLDER/energy_machine_powerstat.log" > "$FOLDER/energy_machine_watts.csv"
-        
-        if [ -s "$FOLDER/energy_machine_watts.csv" ]; then
-            AVG_MACHINE=$(awk '{sum+=$1; c++} END {printf "%.2f", sum/c}' "$FOLDER/energy_machine_watts.csv")
-        else
-            AVG_MACHINE="N/A"
-        fi
-        
-        echo "Machine_Total_Watt" > "$FOLDER/energy_machine_summary.csv"
-        echo "$AVG_MACHINE" >> "$FOLDER/energy_machine_summary.csv"
-    else
-        AVG_MACHINE="N/A"
-    fi
+    # Formatage des données énergétiques MACHINE (powerstat) - DÉSACTIVÉ
+    AVG_MACHINE="N/A"
+    echo "Machine_Total_Watt" > "$FOLDER/energy_machine_summary.csv"
+    echo "$AVG_MACHINE" >> "$FOLDER/energy_machine_summary.csv"
+    touch "$FOLDER/energy_machine_watts.csv"
+    touch "$FOLDER/energy_machine_powerstat.log"
     
     # Métadonnées
     cat > "$FOLDER/test_metadata.txt" << EOF
@@ -220,44 +252,87 @@ Date: $(date '+%Y-%m-%d %H:%M:%S')
 Mode: $MODE
 Workers: ${WORKERS:-N/A}
 Duration: ${TEST_DURATION}s
+Ping Duration: ${PING_DURATION}s
+Wrk Duration: ${WRK_DURATION}s
 Tiger-Fox PID: $APP_PID
 Rules File: $RULES
 Queue Number: $QUEUE_NUM
 Bonus Test: ${IS_BONUS:-false}
+Test Order: $ORDER
 EOF
     
-    # Résumé
+    # Listing des fichiers générés
     echo ""
-    echo "Test terminé: $FOLDER"
+    echo "✅ Test terminé avec succès!"
+    echo "   Fichiers générés dans $FOLDER:"
+    ls -lh "$FOLDER" | tail -n +2 | awk '$5!="0" {printf "     - %-40s (%s)\n", $9, $5}'
+    
+    # Résumés énergétiques
+    echo ""
     if [ "$USE_TURBOSTAT" == "true" ] && [ "$AVG_PKG" != "N/A" ]; then
-        echo "   CPU: $AVG_PKG W (pkg), $AVG_CORE W (cores), $AVG_RAM W (RAM)"
-    fi
-    if [ "$USE_POWERSTAT" == "true" ] && [ "$AVG_MACHINE" != "N/A" ]; then
-        echo "   Machine: $AVG_MACHINE W"
+        echo "   ⚡ Consommation énergétique CPU moyenne:"
+        echo "      • Package: $AVG_PKG W"
+        echo "      • Cores:   $AVG_CORE W"
+        echo "      • RAM:     $AVG_RAM W"
     fi
     
-    echo "Pause 5s..."
+    # Pause importante entre tests
+    echo ""
+    echo "⏸️  Pause de 5s avant le prochain test (synchronisation avec l'injecteur)..."
     sleep 5
+    
+    return 0
 }
 
 # === LANCEMENT DES TESTS ===
-echo "PHASE 1: TESTS STANDARDS"
-# Lancer d'abord les tests parallèles du plus grand nombre de workers au plus petit,
-# puis le test séquentiel. Ceci permet d'évaluer l'impact de l'ordre d'exécution.
-for w in 16 8 7 6 5 4 3 2; do
-    run_test "parallel" "$w" "false"
-done
+echo ""
+echo "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓"
+echo "┃  PHASE 1: TESTS STANDARDS (Charge normale)                         ┃"
+echo "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
 
-# Ensuite le test séquentiel
-run_test "sequential" "" "false"
+if [ "$ORDER" == "descending" ]; then
+    echo "🔽 Ordre des tests: Parallèle 16 → ... → 2 → Séquentiel"
+    echo ""
+    # Lancer d'abord les tests parallèles du plus grand nombre de workers au plus petit
+    for w in 16 8 7 6 5 4 3 2; do
+        run_test "parallel" "$w" "false"
+    done
+    # Puis le test séquentiel
+    run_test "sequential" "" "false"
+else
+    echo "🔼 Ordre des tests: Séquentiel → 2 → ... → 16"
+    echo ""
+    # Ordre ascendant (classique)
+    run_test "sequential" "" "false"
+    for w in 2 3 4 5 6 7 8 16; do
+        run_test "parallel" "$w" "false"
+    done
+fi
 
-echo "PHASE 2: TESTS BONUS"
-echo "IMPORTANT: Injecteur doit utiliser wrk -t8 -c1000"
+echo ""
+echo ""
+echo "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓"
+echo "┃  PHASE 2: TESTS BONUS (Charge doublée - Wrk boosté)                ┃"
+echo "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+echo ""
+echo "⚠️  IMPORTANT: L'injecteur doit utiliser wrk avec -t8 -c1000 pour ces tests!"
 run_test "sequential" "" "true"
 run_test "parallel" "4" "true"
 
 # === FIN ===
-echo "TOUS LES TESTS TERMINÉS!"
-echo "Résultats dans: $(pwd)"
-tree -L 1 . 2>/dev/null || ls -1
-echo "Récupérez ce dossier + celui de l'injecteur → python3 analyze_results.py"
+echo ""
+echo ""
+echo "╔════════════════════════════════════════════════════════════════════════╗"
+echo "║  🎉 TOUS LES TESTS TERMINÉS AVEC SUCCÈS!                              ║"
+echo "╚════════════════════════════════════════════════════════════════════════╝"
+echo ""
+echo "📁 Résultats complets dans: $(pwd)"
+echo ""
+echo "📊 Structure des résultats:"
+tree -L 1 . 2>/dev/null || ls -1 | sed 's/^/   /'
+echo ""
+echo "💡 Prochaines étapes:"
+echo "   1. Récupérer ce dossier sur votre machine locale"
+echo "   2. Récupérer également le dossier de l'injecteur"
+echo "   3. Exécuter: python3 analyze_results.py"
+echo ""
